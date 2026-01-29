@@ -1,4 +1,4 @@
-// OpenAI-powered chat endpoint
+// OpenAI-powered chat endpoint with smart fallback
 const fs = require('fs');
 const path = require('path');
 
@@ -21,18 +21,30 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Question is required' });
   }
 
+  // Load knowledge base
+  let knowledgeBase;
+  try {
+    const kbPath = path.join(process.cwd(), 'data', 'knowledge-base.json');
+    knowledgeBase = JSON.parse(fs.readFileSync(kbPath, 'utf8'));
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to load knowledge base' });
+  }
+
   const apiKey = process.env.OPENAI_API_KEY;
+
+  // If no API key, use smart fallback
   if (!apiKey) {
-    return res.status(500).json({ error: 'OpenAI API key not configured' });
+    const answer = generateSmartAnswer(question, knowledgeBase);
+    return res.status(200).json({
+      success: true,
+      answer,
+      model: 'fallback'
+    });
   }
 
   try {
-    // Load knowledge base
-    const kbPath = path.join(process.cwd(), 'data', 'knowledge-base.json');
-    const knowledgeBase = JSON.parse(fs.readFileSync(kbPath, 'utf8'));
-
-    // Build context from knowledge base
-    const context = buildContext(knowledgeBase);
+    // Build focused context based on question
+    const context = buildFocusedContext(question, knowledgeBase);
 
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -46,13 +58,15 @@ module.exports = async function handler(req, res) {
         messages: [
           {
             role: 'system',
-            content: `You are a helpful MarTech assistant for Mindvalley. You help answer questions about the marketing technology stack, data flows, campaigns, compliance, and analytics.
+            content: `You are a helpful MarTech assistant for Mindvalley. Answer questions clearly and concisely based on the knowledge base provided.
 
-Use the following knowledge base to answer questions accurately. If the information is not in the knowledge base, say so and provide general guidance.
+Rules:
+- Give direct, actionable answers
+- Use **bold** for key terms and bullet points for lists
+- Keep responses focused and under 300 words
+- If you don't have the information, say so briefly
 
-Format your responses with markdown: use **bold** for emphasis, bullet points for lists, and clear paragraphs.
-
-Knowledge Base:
+Knowledge Base Context:
 ${context}`
           },
           {
@@ -60,8 +74,8 @@ ${context}`
             content: question
           }
         ],
-        max_tokens: 1000,
-        temperature: 0.7
+        max_tokens: 800,
+        temperature: 0.5
       })
     });
 
@@ -80,13 +94,184 @@ ${context}`
     });
 
   } catch (error) {
-    console.error('Chat error:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to process question'
+    // Fallback to smart answer if OpenAI fails
+    const answer = generateSmartAnswer(question, knowledgeBase);
+    return res.status(200).json({
+      success: true,
+      answer,
+      model: 'fallback'
     });
   }
 };
+
+// Generate a smart answer without AI by matching FAQs and relevant content
+function generateSmartAnswer(question, kb) {
+  const q = question.toLowerCase();
+
+  // Check FAQs first - find best match
+  let bestFaq = null;
+  let bestScore = 0;
+
+  for (const faq of kb.faqs) {
+    const faqQ = faq.question.toLowerCase();
+    const words = q.split(/\s+/).filter(w => w.length > 3);
+    const matches = words.filter(w => faqQ.includes(w)).length;
+    const score = matches / words.length;
+
+    if (score > bestScore && score > 0.3) {
+      bestScore = score;
+      bestFaq = faq;
+    }
+  }
+
+  if (bestFaq && bestScore > 0.5) {
+    return `**${bestFaq.question}**\n\n${bestFaq.answer}`;
+  }
+
+  // Check for specific topics
+  if (q.includes('lead scor')) {
+    const model = kb.dataStrategy.predictiveModels.find(m => m.name.includes('Lead Score'));
+    if (model) {
+      let answer = `**${model.name}**\n\n${model.description}\n\n**Score Tiers:**\n`;
+      model.tiers.forEach(t => {
+        answer += `• **${t.tier}**${t.label ? ` (${t.label})` : ''}: ${t.action}\n`;
+      });
+      answer += `\nThe score is computed in Segment and synced to Braze for targeting.`;
+      return answer;
+    }
+  }
+
+  if (q.includes('churn') || q.includes('predictive churn')) {
+    const model = kb.dataStrategy.predictiveModels.find(m => m.name.includes('Churn'));
+    if (model) {
+      let answer = `**${model.name}**\n\n${model.description} (Scale: ${model.scale})\n\n**Tiers:**\n`;
+      model.tiers.forEach(t => {
+        answer += `• **${t.tier}**: ${t.action}\n`;
+      });
+      return answer;
+    }
+  }
+
+  if (q.includes('braze') && q.includes('channel')) {
+    const braze = kb.categories.find(c => c.name === 'Customer Engagement')?.tools.find(t => t.name === 'Braze');
+    if (braze && braze.channels) {
+      return `**Braze Supported Channels:**\n\n${braze.channels.map(c => `• ${c}`).join('\n')}\n\n**Additional Capabilities:**\n${braze.capabilities.slice(0, 6).map(c => `• ${c}`).join('\n')}`;
+    }
+  }
+
+  if (q.includes('mta') || q.includes('mmm') || q.includes('attribution')) {
+    const mf = kb.measurementFramework;
+    let answer = `**${mf.description}**\n\n`;
+    mf.approaches.forEach(a => {
+      answer += `**${a.name}** - ${a.purpose}\n${a.description}\n\n`;
+    });
+    return answer;
+  }
+
+  if (q.includes('gdpr') || q.includes('compliance') || q.includes('privacy')) {
+    const c = kb.compliance;
+    let answer = `**Compliance & Privacy**\n\nRegulations: ${c.regulations.join(', ')}\n\n_"${c.principle}"_\n\n`;
+    c.highRiskAreas.forEach(area => {
+      answer += `**${area.area}:**\n${area.requirements.map(r => `• ${r}`).join('\n')}\n\n`;
+    });
+    return answer;
+  }
+
+  if (q.includes('data') && (q.includes('collect') || q.includes('flow'))) {
+    let answer = `**Data Collection & Flows**\n\nUser data is collected via Segment SDK in the web/app.\n\n**Key Data Flows:**\n`;
+    kb.dataFlows.forEach(f => {
+      answer += `• **${f.name}**: ${f.source} → ${f.destination}\n  _${f.dataType}_\n`;
+    });
+    return answer;
+  }
+
+  // If we found a relevant FAQ but score was lower, still use it
+  if (bestFaq) {
+    return `**${bestFaq.question}**\n\n${bestFaq.answer}`;
+  }
+
+  // Default response
+  return `I can help you with questions about:\n\n• **Tools**: Braze, Segment, Amplitude, AppsFlyer, Mixpanel\n• **Data**: Lead scoring, LTV prediction, churn models\n• **Campaigns**: How to send push/email/SMS via Braze\n• **Attribution**: MTA vs MMM, measurement frameworks\n• **Compliance**: GDPR, consent management\n\nTry asking a specific question like "How does lead scoring work?" or "What channels does Braze support?"`;
+}
+
+// Build focused context based on the question
+function buildFocusedContext(question, kb) {
+  const q = question.toLowerCase();
+  let context = '';
+
+  // Always include relevant FAQs
+  const relevantFaqs = kb.faqs.filter(faq => {
+    const words = q.split(/\s+/).filter(w => w.length > 3);
+    return words.some(w => faq.question.toLowerCase().includes(w) || faq.answer.toLowerCase().includes(w));
+  }).slice(0, 3);
+
+  if (relevantFaqs.length > 0) {
+    context += 'Relevant FAQs:\n';
+    relevantFaqs.forEach(faq => {
+      context += `Q: ${faq.question}\nA: ${faq.answer}\n\n`;
+    });
+  }
+
+  // Add predictive models if relevant
+  if (q.includes('lead') || q.includes('score') || q.includes('churn') || q.includes('ltv') || q.includes('predictive')) {
+    context += 'Predictive Models:\n';
+    kb.dataStrategy.predictiveModels.forEach(m => {
+      context += `${m.name}: ${m.description}`;
+      if (m.scale) context += ` (${m.scale})`;
+      context += '\n';
+      if (m.tiers) {
+        m.tiers.forEach(t => context += `  - ${t.tier}${t.label ? ` [${t.label}]` : ''}: ${t.action}\n`);
+      }
+    });
+    context += '\n';
+  }
+
+  // Add tool info if relevant
+  const toolKeywords = ['braze', 'segment', 'amplitude', 'mixpanel', 'appsflyer', 'push', 'email', 'sms', 'channel'];
+  if (toolKeywords.some(k => q.includes(k))) {
+    context += 'Tools:\n';
+    kb.categories.forEach(cat => {
+      cat.tools.forEach(tool => {
+        if (toolKeywords.some(k => tool.name.toLowerCase().includes(k) || q.includes(tool.name.toLowerCase()))) {
+          context += `${tool.name}: ${tool.description}\n`;
+          if (tool.capabilities) context += `Capabilities: ${tool.capabilities.join(', ')}\n`;
+          if (tool.channels) context += `Channels: ${tool.channels.join(', ')}\n`;
+        }
+      });
+    });
+    context += '\n';
+  }
+
+  // Add measurement framework if relevant
+  if (q.includes('mta') || q.includes('mmm') || q.includes('attribution') || q.includes('measurement')) {
+    context += `Measurement Framework: ${kb.measurementFramework.description}\n`;
+    kb.measurementFramework.approaches.forEach(a => {
+      context += `${a.name} (${a.purpose}): ${a.description}\n`;
+    });
+    context += '\n';
+  }
+
+  // Add compliance if relevant
+  if (q.includes('gdpr') || q.includes('compliance') || q.includes('privacy') || q.includes('consent')) {
+    context += `Compliance: Regulations: ${kb.compliance.regulations.join(', ')}\n`;
+    context += `Principle: ${kb.compliance.principle}\n`;
+    kb.compliance.highRiskAreas.forEach(a => {
+      context += `${a.area}: ${a.requirements.join('; ')}\n`;
+    });
+    context += '\n';
+  }
+
+  // Add data flows if relevant
+  if (q.includes('data') || q.includes('flow') || q.includes('collect') || q.includes('segment')) {
+    context += 'Data Flows:\n';
+    kb.dataFlows.forEach(f => {
+      context += `${f.name}: ${f.source} -> ${f.destination} (${f.dataType})\n`;
+    });
+    context += '\n';
+  }
+
+  return context || buildContext(kb);
+}
 
 function buildContext(kb) {
   let context = '';
