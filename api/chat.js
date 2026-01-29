@@ -190,6 +190,11 @@ function generateSmartAnswer(question, kb) {
     return `**${bestFaq.question}**\n\n${bestFaq.answer}`;
   }
 
+  // Check if question is about Braze - give Braze-specific suggestions
+  if (q.includes('braze') || q.includes('campaign') || q.includes('canvas')) {
+    return `**I can help with Braze!** Try asking:\n\n• "List all campaigns" - See your active campaigns\n• "Show Braze campaigns" - View campaign list\n• "How many campaigns do we have?" - Get campaign count\n• "What campaigns are running?" - See active campaigns\n• "What channels does Braze support?" - Learn about Braze capabilities\n• "How do I send a push notification?" - Step-by-step guide\n• "What is a Canvas in Braze?" - Learn about journey orchestration\n\n_Note: Live campaign data requires Braze to be connected in the Admin panel._`;
+  }
+
   // Default response
   return `I can help you with questions about:\n\n• **Tools**: Braze, Segment, Amplitude, AppsFlyer, Mixpanel\n• **Data**: Lead scoring, LTV prediction, churn models\n• **Campaigns**: How to send push/email/SMS via Braze\n• **Attribution**: MTA vs MMM, measurement frameworks\n• **Compliance**: GDPR, consent management\n\nTry asking a specific question like "How does lead scoring work?" or "What channels does Braze support?"`;
 }
