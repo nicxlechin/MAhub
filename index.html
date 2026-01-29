@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarTech Automation Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(to bottom right, #0f172a, #581c87, #0f172a);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="text-white p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8 flex justify-between items-start">
+            <div>
+                <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                    MarTech Automation Hub
+                </h1>
+                <p class="text-slate-300">Query your marketing stack or run automated tasks</p>
+            </div>
+            <button onclick="toggleConfig()" id="connectBtn" class="flex items-center gap-2 px-4 py-2 rounded-lg border bg-slate-800 border-slate-700 hover:border-purple-500">
+                🔌 Connect Braze
+            </button>
+        </div>
+
+        <!-- Config Panel -->
+        <div id="configPanel" class="mb-8 bg-slate-800/50 border border-slate-700 rounded-xl p-6 hidden">
+            <h3 class="text-xl font-semibold mb-4">🔑 Braze API Configuration</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Proxy Server URL</label>
+                    <input type="text" id="proxyUrl" value="https://ma-hub.vercel.app" placeholder="https://ma-hub.vercel.app"
+                        class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">REST Endpoint</label>
+                    <input type="text" id="restEndpoint" placeholder="https://rest.iad-01.braze.com"
+                        class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">API Key</label>
+                    <input type="password" id="apiKey" placeholder="Your Braze REST API Key"
+                        class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                </div>
+                <button onclick="testConnection()" class="w-full bg-purple-500 hover:bg-purple-600 px-6 py-3 rounded-lg font-medium">
+                    Test Connection
+                </button>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="mb-8 relative">
+            <input type="text" id="searchInput" placeholder="Ask anything about your martech stack..."
+                class="w-full px-6 py-4 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-400">
+            <button onclick="runQuery()" class="absolute right-3 top-1/2 transform -translate-y-1/2 bg-purple-500 hover:bg-purple-600 px-6 py-2 rounded-lg">
+                🔍 Query
+            </button>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="mb-8">
+            <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">Quick Actions</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <button onclick="fetchCampaigns()" class="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg p-4 text-left">
+                    ⚡ List Braze campaigns
+                </button>
+                <button onclick="runQuery('email deliverability')" class="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg p-4 text-left">
+                    📧 Email deliverability
+                </button>
+                <button onclick="runQuery('user journey')" class="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg p-4 text-left">
+                    📊 User journey map
+                </button>
+                <button onclick="runQuery('segment sync')" class="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg p-4 text-left">
+                    💾 Segment sync health
+                </button>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="bg-slate-800/50 border border-slate-700 rounded-xl p-6 hidden">
+            <h3 class="text-xl font-semibold mb-4">✅ Results</h3>
+            <div id="resultsList" class="space-y-3"></div>
+        </div>
+
+        <!-- Loading -->
+        <div id="loading" class="hidden bg-slate-800/50 border border-slate-700 rounded-xl p-8 text-center">
+            <div class="animate-spin w-8 h-8 border-4 border-purple-400 border-t-transparent rounded-full mx-auto mb-3"></div>
+            <p class="text-slate-300">Processing your request...</p>
+        </div>
+    </div>
+
+    <script>
+        let isConnected = false;
+        let config = {
+            proxyUrl: 'https://ma-hub.vercel.app',
+            restEndpoint: '',
+            apiKey: '',
+            isDirect: false
+        };
+
+        function toggleConfig() {
+            const panel = document.getElementById('configPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        async function testConnection() {
+            showLoading(true);
+            config.proxyUrl = document.getElementById('proxyUrl').value;
+            config.restEndpoint = document.getElementById('restEndpoint').value;
+            config.apiKey = document.getElementById('apiKey').value;
+
+            // Try direct connection first (may work in some environments)
+            try {
+                const testRes = await fetch(`${config.restEndpoint}/campaigns/list`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${config.apiKey}`
+                    },
+                    body: JSON.stringify({ page: 0, include_archived: false, limit: 5 })
+                });
+
+                const data = await testRes.json();
+
+                if (testRes.ok && data.campaigns) {
+                    isConnected = true;
+                    config.isDirect = true;
+                    document.getElementById('connectBtn').innerHTML = '✅ Connected to Braze (Direct)';
+                    document.getElementById('connectBtn').className = 'flex items-center gap-2 px-4 py-2 rounded-lg border bg-green-500/20 border-green-500 text-green-400';
+                    document.getElementById('configPanel').classList.add('hidden');
+                    showResults([
+                        { status: 'success', title: 'Braze Connected! (Direct)', detail: `Found ${data.campaigns.length} campaigns - direct connection working!` }
+                    ]);
+                    showLoading(false);
+                    return;
+                } else {
+                    throw new Error(data.message || 'Check credentials');
+                }
+            } catch (directError) {
+                // Direct didn't work, try proxy
+                try {
+                    const configRes = await fetch(`${config.proxyUrl}/api/config`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            apiKey: config.apiKey,
+                            restEndpoint: config.restEndpoint
+                        })
+                    });
+
+                    if (!configRes.ok) throw new Error('Proxy not responding');
+
+                    const testRes = await fetch(`${config.proxyUrl}/api/braze-campaigns`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            apiKey: config.apiKey,
+                            restEndpoint: config.restEndpoint,
+                            page: 0,
+                            include_archived: false,
+                            limit: 5
+                        })
+                    });
+
+                    const data = await testRes.json();
+
+                    if (testRes.ok && data.campaigns) {
+                        isConnected = true;
+                        config.isDirect = false;
+                        document.getElementById('connectBtn').innerHTML = '✅ Connected to Braze (via Proxy)';
+                        document.getElementById('connectBtn').className = 'flex items-center gap-2 px-4 py-2 rounded-lg border bg-green-500/20 border-green-500 text-green-400';
+                        document.getElementById('configPanel').classList.add('hidden');
+                        showResults([
+                            { status: 'success', title: 'Braze Connected!', detail: `Found ${data.campaigns.length} campaigns via proxy` }
+                        ]);
+                    } else {
+                        throw new Error(data.message || 'Check credentials');
+                    }
+                } catch (proxyError) {
+                    showResults([
+                        { status: 'warning', title: 'Connection Failed', detail: 'Neither direct nor proxy connection worked' },
+                        { status: 'info', title: 'Direct Error', detail: directError.message },
+                        { status: 'info', title: 'Proxy Error', detail: proxyError.message },
+                        { status: 'info', title: 'Solution', detail: 'Make sure your Vercel proxy is deployed correctly' }
+                    ]);
+                }
+            }
+            showLoading(false);
+        }
+
+        async function fetchCampaigns() {
+            if (!isConnected) {
+                alert('Please connect to Braze first!');
+                toggleConfig();
+                return;
+            }
+
+            showLoading(true);
+            try {
+                let res;
+                if (config.isDirect) {
+                    // Direct connection
+                    res = await fetch(`${config.restEndpoint}/campaigns/list`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${config.apiKey}`
+                        },
+                        body: JSON.stringify({ page: 0, include_archived: false, limit: 10 })
+                    });
+                } else {
+                    // Via proxy
+                    res = await fetch(`${config.proxyUrl}/api/braze-campaigns`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            apiKey: config.apiKey,
+                            restEndpoint: config.restEndpoint,
+                            page: 0,
+                            include_archived: false,
+                            limit: 10
+                        })
+                    });
+                }
+
+                const data = await res.json();
+
+                if (data.campaigns) {
+                    const results = [
+                        { status: 'success', title: 'Active Campaigns (REAL DATA)', detail: `Found ${data.campaigns.length} campaigns from your Braze workspace` },
+                        ...data.campaigns.map(c => ({
+                            status: 'info',
+                            title: c.name,
+                            detail: `ID: ${c.id} | Created: ${new Date(c.created_at).toLocaleDateString()}`
+                        }))
+                    ];
+                    showResults(results);
+                } else {
+                    showResults([{ status: 'warning', title: 'No campaigns found', detail: data.message }]);
+                }
+            } catch (error) {
+                showResults([{ status: 'warning', title: 'Fetch failed', detail: error.message }]);
+            }
+            showLoading(false);
+        }
+
+        function runQuery(text) {
+            const query = text || document.getElementById('searchInput').value;
+            showResults([
+                { status: 'info', title: 'Query received', detail: query },
+                { status: 'success', title: 'Demo mode', detail: 'Connect Braze for real data' }
+            ]);
+        }
+
+        function showResults(results) {
+            const container = document.getElementById('resultsList');
+            container.innerHTML = results.map(r => `
+                <div class="bg-slate-900/50 border border-slate-700 rounded-lg p-4 flex items-start gap-3">
+                    <span class="text-2xl">${r.status === 'success' ? '✅' : r.status === 'warning' ? '⚠️' : 'ℹ️'}</span>
+                    <div>
+                        <div class="font-semibold">${r.title}</div>
+                        <div class="text-sm text-slate-400">${r.detail}</div>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('results').classList.remove('hidden');
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('hidden', !show);
+            document.getElementById('results').classList.toggle('hidden', show);
+        }
+    </script>
+</body>
+</html>
