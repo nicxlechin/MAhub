@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MarTech Automation Hub</title>
+    <title>MV MarTech Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -34,9 +34,10 @@
                 Admin
             </a>
             <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                MarTech Automation Hub
+                MV MarTech Hub
             </h1>
             <p class="text-slate-300">Ask anything about your marketing technology stack</p>
+            <div id="connectionStatus" class="mt-2 text-xs"></div>
         </div>
 
         <!-- Search Bar -->
@@ -86,7 +87,7 @@
                         <span class="text-lg">🤖</span>
                     </div>
                     <div>
-                        <p class="text-slate-300">Hi! I'm your Mindvalley MarTech assistant. I can help you with:</p>
+                        <p class="text-slate-300">Hi! I'm your MV MarTech assistant. I can help you with:</p>
                         <ul class="mt-2 text-slate-400 text-sm space-y-1">
                             <li>• Your stack: Segment, Braze, Amplitude, Mixpanel, AppsFlyer, Clarisights</li>
                             <li>• Data flows, audiences, and computed traits</li>
@@ -121,6 +122,11 @@
         // Load admin-configured Braze settings (stored by admin)
         const brazeConfig = JSON.parse(localStorage.getItem('brazeConfig') || '{}');
 
+        // Show connection status
+        if (brazeConfig.apiKey) {
+            document.getElementById('connectionStatus').innerHTML = '<span class="text-green-400">● Braze connected</span>';
+        }
+
         async function runQuery(presetQuery) {
             const query = presetQuery || document.getElementById('searchInput').value.trim();
             if (!query) return;
@@ -132,8 +138,14 @@
             addMessage('user', query);
 
             // Check if this is a Braze data request (live data)
-            const isBrazeDataQuery = /braze|campaign|canvas/i.test(query) &&
-                                     /list|show|get|fetch|all|active/i.test(query);
+            const isBrazeDataQuery = (
+                // Explicit list/show requests
+                (/braze|campaign|canvas/i.test(query) && /list|show|get|fetch|all|active|running|current|recent/i.test(query)) ||
+                // Questions about campaign counts or status
+                (/how many|what are|which/i.test(query) && /campaign|canvas/i.test(query)) ||
+                // Direct campaign queries
+                /^list (all )?(braze )?campaigns?$/i.test(query.trim())
+            );
 
             try {
                 let response = '';
@@ -166,8 +178,10 @@
                         if (sortedCampaigns.length > 10) {
                             response += `\n_...and ${sortedCampaigns.length - 10} more campaigns_`;
                         }
+                    } else if (!brazeConfig.apiKey) {
+                        response = '**Braze not connected**\n\nTo fetch live campaign data, an admin needs to configure Braze credentials in the [Admin Panel](/admin.html).\n\nOnce connected, I can show you:\n• Active campaigns\n• Recent canvases\n• Campaign performance data';
                     } else {
-                        response = 'No campaigns found in Braze, or Braze connection not configured by admin.';
+                        response = 'No campaigns found in Braze. This could mean there are no active campaigns, or there may be an issue with the API connection.';
                     }
                 } else {
                     // Use AI-powered chat endpoint
