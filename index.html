@@ -46,17 +46,23 @@
         <div class="mb-8">
             <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">Popular Questions</h3>
             <div class="flex flex-wrap gap-2">
-                <button onclick="runQuery('How do I send a push notification?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    How do I send a push notification?
+                <button onclick="runQuery('How does lead scoring work?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    How does lead scoring work?
                 </button>
-                <button onclick="runQuery('What tools do we use for analytics?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    What tools for analytics?
+                <button onclick="runQuery('What is predictive churn?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    What is predictive churn?
                 </button>
                 <button onclick="runQuery('How is user data collected?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    How is user data collected?
+                    How is data collected?
                 </button>
-                <button onclick="runQuery('What is a Canvas in Braze?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    What is a Canvas?
+                <button onclick="runQuery('What channels does Braze support?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    Braze channels
+                </button>
+                <button onclick="runQuery('What is the difference between MTA and MMM?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    MTA vs MMM
+                </button>
+                <button onclick="runQuery('GDPR compliance requirements')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    GDPR compliance
                 </button>
                 <button onclick="runQuery('List all Braze campaigns')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
                     List Braze campaigns
@@ -73,12 +79,14 @@
                         <span class="text-lg">🤖</span>
                     </div>
                     <div>
-                        <p class="text-slate-300">Hi! I'm your MarTech assistant. I can help you with:</p>
+                        <p class="text-slate-300">Hi! I'm your Mindvalley MarTech assistant. I can help you with:</p>
                         <ul class="mt-2 text-slate-400 text-sm space-y-1">
-                            <li>• Understanding your marketing tools (Braze, Segment, Amplitude, etc.)</li>
-                            <li>• How data flows between systems</li>
-                            <li>• Creating campaigns and segments</li>
-                            <li>• Fetching live data from connected tools</li>
+                            <li>• Your stack: Segment, Braze, Amplitude, Mixpanel, AppsFlyer, Clarisights</li>
+                            <li>• Data flows, audiences, and computed traits</li>
+                            <li>• Lead scoring, predictive LTV, churn models</li>
+                            <li>• Campaigns, canvases, and segmentation</li>
+                            <li>• Attribution (MTA/MMM) and measurement</li>
+                            <li>• Compliance (GDPR, CPRA, consent)</li>
                         </ul>
                     </div>
                 </div>
@@ -182,7 +190,7 @@
         function formatKBResponse(query, results) {
             let response = '';
 
-            // Check for FAQ matches first
+            // Check for FAQ matches first (highest priority)
             if (results.faqs && results.faqs.length > 0) {
                 const faq = results.faqs[0];
                 response += `**${faq.question}**\n\n${faq.answer}\n\n`;
@@ -195,33 +203,97 @@
                 }
 
                 results.tools.slice(0, 3).forEach(tool => {
-                    response += `**${tool.tool}** (${tool.category})\n`;
+                    const statusBadge = tool.status === 'deprecated' ? ' _(being migrated)_' : '';
+                    response += `**${tool.tool}**${statusBadge} (${tool.category})\n`;
                     response += `${tool.description}\n\n`;
 
                     if (tool.capabilities && tool.capabilities.length > 0) {
                         response += `Key capabilities:\n`;
-                        tool.capabilities.slice(0, 5).forEach(cap => {
+                        tool.capabilities.slice(0, 6).forEach(cap => {
                             response += `• ${cap}\n`;
                         });
                         response += '\n';
                     }
 
+                    if (tool.channels && tool.channels.length > 0) {
+                        response += `Channels: ${tool.channels.join(', ')}\n\n`;
+                    }
+
                     if (tool.integrations && tool.integrations.length > 0) {
                         response += `Integrates with: ${tool.integrations.join(', ')}\n\n`;
                     }
+
+                    if (tool.consolidationPlan) {
+                        response += `**Migration plan:** ${tool.consolidationPlan.movingToBraze.join(', ')} → Braze\n\n`;
+                    }
+                });
+            }
+
+            // Add predictive models
+            if (results.predictiveModels && results.predictiveModels.length > 0) {
+                response += `**Predictive Models:**\n\n`;
+                results.predictiveModels.forEach(model => {
+                    response += `**${model.name}** ${model.scale ? `(${model.scale})` : ''}\n`;
+                    response += `${model.description}\n`;
+                    if (model.tiers) {
+                        model.tiers.forEach(tier => {
+                            const label = tier.label ? ` (${tier.label})` : '';
+                            response += `• ${tier.tier}${label}: ${tier.action}\n`;
+                        });
+                    }
+                    response += '\n';
+                });
+            }
+
+            // Add strategic pillars
+            if (results.strategicPillars && results.strategicPillars.length > 0) {
+                response += `**Strategic Pillars:**\n\n`;
+                results.strategicPillars.forEach(pillar => {
+                    response += `**${pillar.name}**: ${pillar.description}\n`;
+                    pillar.initiatives.slice(0, 3).forEach(init => {
+                        response += `• ${init}\n`;
+                    });
+                    response += '\n';
                 });
             }
 
             // Add data flow information
             if (results.dataFlows && results.dataFlows.length > 0) {
-                response += `**Related Data Flows:**\n`;
+                response += `**Data Flows:**\n`;
                 results.dataFlows.forEach(flow => {
-                    response += `• ${flow.name}: ${flow.source} → ${flow.destination}\n`;
+                    response += `• **${flow.name}**: ${flow.source} → ${flow.destination}\n`;
                     response += `  _${flow.description}_\n`;
+                    response += `  Data: ${flow.dataType}\n`;
+                });
+                response += '\n';
+            }
+
+            // Add measurement framework
+            if (results.measurementFramework) {
+                response += `**Measurement Framework:**\n`;
+                response += `_${results.measurementFramework.description}_\n\n`;
+                results.measurementFramework.approaches.forEach(approach => {
+                    response += `• **${approach.name}** - ${approach.purpose}\n`;
+                    response += `  ${approach.description}\n`;
+                });
+                response += '\n';
+            }
+
+            // Add compliance info
+            if (results.compliance && results.compliance.length > 0) {
+                const comp = results.compliance[0];
+                response += `**Compliance & Privacy:**\n`;
+                response += `Regulations: ${comp.regulations.join(', ')}\n\n`;
+                response += `_"${comp.principle}"_\n\n`;
+                comp.highRiskAreas.forEach(area => {
+                    response += `**${area.area}:**\n`;
+                    area.requirements.forEach(req => {
+                        response += `• ${req}\n`;
+                    });
                 });
             }
 
-            return response || `I found some information but couldn't format it properly. Try a more specific question.`;
+            return response || `I couldn't find specific information about "${query}". Try asking about:\n\n• Tools (Braze, Segment, Amplitude, AppsFlyer)\n• Data flows and integrations\n• Lead scoring, LTV, or churn prediction\n• Compliance and consent\n• Strategic pillars`;
         }
 
         function addMessage(role, content) {
