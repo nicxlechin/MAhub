@@ -124,15 +124,15 @@
             // Add user message
             addMessage('user', query);
 
-            // Check if this is a Braze data request
-            const isBrazeQuery = /braze|campaign|canvas|segment/i.test(query) &&
-                                 /list|show|get|fetch|all/i.test(query);
+            // Check if this is a Braze data request (live data)
+            const isBrazeDataQuery = /braze|campaign|canvas/i.test(query) &&
+                                     /list|show|get|fetch|all|active/i.test(query);
 
             try {
                 let response = '';
 
-                if (isBrazeQuery && brazeConfig.apiKey) {
-                    // Fetch from Braze API
+                if (isBrazeDataQuery && brazeConfig.apiKey) {
+                    // Fetch live data from Braze API
                     const brazeRes = await fetch(`${PROXY_URL}/api/braze-campaigns`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -163,18 +163,30 @@
                         response = 'No campaigns found in Braze, or Braze connection not configured by admin.';
                     }
                 } else {
-                    // Search knowledge base
-                    const kbRes = await fetch(`${PROXY_URL}/api/knowledge`, {
+                    // Use AI-powered chat endpoint
+                    const chatRes = await fetch(`${PROXY_URL}/api/chat`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ query })
+                        body: JSON.stringify({ question: query })
                     });
-                    const kbData = await kbRes.json();
+                    const chatData = await chatRes.json();
 
-                    if (kbData.success && kbData.totalResults > 0) {
-                        response = formatKBResponse(query, kbData.results);
+                    if (chatData.success && chatData.answer) {
+                        response = chatData.answer;
                     } else {
-                        response = `I couldn't find specific information about "${query}" in the knowledge base. Try asking about:\n\n• Specific tools (Braze, Segment, Amplitude)\n• Data flows and integrations\n• How to perform common tasks`;
+                        // Fallback to knowledge base search if AI fails
+                        const kbRes = await fetch(`${PROXY_URL}/api/knowledge`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query })
+                        });
+                        const kbData = await kbRes.json();
+
+                        if (kbData.success && kbData.totalResults > 0) {
+                            response = formatKBResponse(query, kbData.results);
+                        } else {
+                            response = chatData.error || `I couldn't find specific information about "${query}". Try asking about:\n\n• Specific tools (Braze, Segment, Amplitude)\n• Data flows and integrations\n• How to perform common tasks`;
+                        }
                     }
                 }
 

@@ -1,6 +1,7 @@
 // Simple admin authentication
 // In production, use environment variables and proper auth
-const ADMIN_PASSWORD = 'martech2024';
+const ADMIN_USERNAME = 'admin';
+const ADMIN_PASSWORD = 'password';
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,14 +16,14 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { password } = req.body;
+  const { username, password } = req.body;
 
-  if (password === ADMIN_PASSWORD) {
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     return res.status(200).json({
       success: true,
-      token: Buffer.from(`admin:${Date.now()}`).toString('base64')
+      token: Buffer.from(`${username}:${Date.now()}`).toString('base64')
     });
   }
 
-  return res.status(401).json({ success: false, error: 'Invalid password' });
+  return res.status(401).json({ success: false, error: 'Invalid credentials' });
 };

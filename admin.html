@@ -20,13 +20,15 @@
                 <h1 class="text-2xl font-bold mb-2 text-center">Admin Access</h1>
                 <p class="text-slate-400 text-center mb-6">MarTech Automation Hub</p>
                 <div class="space-y-4">
-                    <input type="password" id="adminPassword" placeholder="Enter admin password"
+                    <input type="text" id="adminUsername" placeholder="Username"
+                        class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white">
+                    <input type="password" id="adminPassword" placeholder="Password"
                         class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
                         onkeypress="if(event.key==='Enter')login()">
                     <button onclick="login()" class="w-full bg-purple-500 hover:bg-purple-600 px-6 py-3 rounded-lg font-medium">
                         Login
                     </button>
-                    <p id="loginError" class="text-red-400 text-center hidden">Invalid password</p>
+                    <p id="loginError" class="text-red-400 text-center hidden">Invalid credentials</p>
                 </div>
             </div>
         </div>
@@ -69,17 +71,41 @@
                 <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center font-bold">G</div>
-                        <div>
-                            <h3 class="font-semibold">Google Drive</h3>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <h3 class="font-semibold">Google Drive</h3>
+                                <span class="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">Coming Soon</span>
+                            </div>
                             <p class="text-sm text-slate-400" id="gdriveStatus">Not connected</p>
                         </div>
                     </div>
                     <div class="space-y-3">
-                        <input type="text" id="gdriveFolderId" placeholder="Folder ID"
-                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
                         <p class="text-xs text-slate-500">Google Drive integration requires OAuth setup. Contact engineering for service account credentials.</p>
-                        <button onclick="saveGdrive()" class="w-full bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded-lg text-sm" disabled>
-                            Coming Soon
+                        <button onclick="connectGdrive()" class="w-full bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
+                            </svg>
+                            Connect with Google
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Airtable Connector -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-br from-teal-500 to-blue-500 rounded-lg flex items-center justify-center font-bold">A</div>
+                        <div>
+                            <h3 class="font-semibold">Airtable</h3>
+                            <p class="text-sm text-slate-400" id="airtableStatus">Not connected</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <input type="password" id="airtableApiKey" placeholder="API Key (Personal Access Token)"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                        <input type="text" id="airtableBaseId" placeholder="Base ID (e.g., appXXXXXXXXXXXXXX)"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                        <button onclick="saveAirtable()" class="w-full bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded-lg text-sm">
+                            Save & Test Connection
                         </button>
                     </div>
                 </div>
@@ -137,12 +163,13 @@
         }
 
         async function login() {
+            const username = document.getElementById('adminUsername').value;
             const password = document.getElementById('adminPassword').value;
             try {
                 const res = await fetch(`${PROXY_URL}/api/admin-auth`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
+                    body: JSON.stringify({ username, password })
                 });
                 const data = await res.json();
                 if (data.success) {
@@ -179,6 +206,7 @@
                 document.getElementById('brazeStatus').textContent = 'Connected';
                 document.getElementById('brazeStatus').className = 'text-sm text-green-400';
             }
+            loadAirtableStatus();
         }
 
         async function saveBraze() {
@@ -208,8 +236,53 @@
             }
         }
 
-        function saveGdrive() {
-            alert('Google Drive integration coming soon. Requires OAuth setup.');
+        function connectGdrive() {
+            alert('Google Drive integration requires OAuth setup.\n\nPlease contact engineering to configure a service account and obtain the necessary credentials.');
+        }
+
+        function loadAirtableStatus() {
+            const airtableConfig = JSON.parse(localStorage.getItem('airtableConfig') || '{}');
+            if (airtableConfig.apiKey) {
+                document.getElementById('airtableApiKey').value = airtableConfig.apiKey || '';
+                document.getElementById('airtableBaseId').value = airtableConfig.baseId || '';
+                document.getElementById('airtableStatus').textContent = 'Connected';
+                document.getElementById('airtableStatus').className = 'text-sm text-green-400';
+            }
+        }
+
+        async function saveAirtable() {
+            const apiKey = document.getElementById('airtableApiKey').value;
+            const baseId = document.getElementById('airtableBaseId').value;
+
+            if (!apiKey || !baseId) {
+                alert('Please enter both API Key and Base ID');
+                return;
+            }
+
+            try {
+                document.getElementById('airtableStatus').textContent = 'Testing...';
+                document.getElementById('airtableStatus').className = 'text-sm text-yellow-400';
+
+                const res = await fetch(`${PROXY_URL}/api/airtable-config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey, baseId })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    localStorage.setItem('airtableConfig', JSON.stringify({ apiKey, baseId }));
+                    document.getElementById('airtableStatus').textContent = `Connected (${data.tableCount} tables)`;
+                    document.getElementById('airtableStatus').className = 'text-sm text-green-400';
+                    alert(`Airtable connected successfully!\n\nFound ${data.tableCount} tables:\n${data.tables.map(t => '- ' + t.name).join('\n')}`);
+                } else {
+                    throw new Error(data.error || 'Connection failed');
+                }
+            } catch (e) {
+                document.getElementById('airtableStatus').textContent = 'Connection failed';
+                document.getElementById('airtableStatus').className = 'text-sm text-red-400';
+                alert('Failed to connect: ' + e.message);
+            }
         }
 
         async function loadKBStats() {
