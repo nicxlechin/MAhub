@@ -27,7 +27,8 @@ module.exports = async function handler(req, res) {
     const params = new URLSearchParams();
     if (page !== undefined) params.append('page', page);
     if (includeArchived !== undefined) params.append('include_archived', includeArchived);
-    if (sortDirection) params.append('sort_direction', sortDirection);
+    // Default to descending (most recent first) if not specified
+    params.append('sort_direction', sortDirection || 'desc');
     if (lastEditTimeGt) params.append('last_edit.time[gt]', lastEditTimeGt);
     if (lastEditTimeLt) params.append('last_edit.time[lt]', lastEditTimeLt);
 

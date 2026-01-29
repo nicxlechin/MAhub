@@ -230,13 +230,30 @@
                 const data = await res.json();
 
                 if (data.campaigns) {
+                    // Sort by last_edited or created_at (most recent first)
+                    const sortedCampaigns = [...data.campaigns].sort((a, b) => {
+                        const dateA = new Date(a.last_edited || a.created_at);
+                        const dateB = new Date(b.last_edited || b.created_at);
+                        return dateB - dateA;
+                    });
+
                     const results = [
-                        { status: 'success', title: 'Active Campaigns (REAL DATA)', detail: `Found ${data.campaigns.length} campaigns from your Braze workspace` },
-                        ...data.campaigns.map(c => ({
-                            status: 'info',
-                            title: c.name,
-                            detail: `ID: ${c.id} | Created: ${new Date(c.created_at).toLocaleDateString()}`
-                        }))
+                        { status: 'success', title: 'Active Campaigns (REAL DATA)', detail: `Found ${sortedCampaigns.length} campaigns from your Braze workspace (sorted by most recent)` },
+                        ...sortedCampaigns.map(c => {
+                            const lastEdited = c.last_edited ? new Date(c.last_edited) : null;
+                            const created = new Date(c.created_at);
+                            const displayDate = lastEdited || created;
+                            const dateLabel = lastEdited ? 'Last edited' : 'Created';
+
+                            return {
+                                status: 'info',
+                                title: c.name,
+                                detail: `ID: ${c.id} | ${dateLabel}: ${displayDate.toLocaleString(undefined, {
+                                    dateStyle: 'medium',
+                                    timeStyle: 'short'
+                                })}`
+                            };
+                        })
                     ];
                     showResults(results);
                 } else {
