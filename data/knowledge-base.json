@@ -1,0 +1,194 @@
+{
+  "categories": [
+    {
+      "name": "Customer Engagement",
+      "description": "Tools for engaging customers across channels",
+      "tools": [
+        {
+          "name": "Braze",
+          "description": "Customer engagement platform for messaging across push, email, SMS, and in-app",
+          "capabilities": [
+            "Push notifications",
+            "Email campaigns",
+            "SMS messaging",
+            "In-app messages",
+            "Content cards",
+            "Canvas (journey orchestration)",
+            "Segmentation",
+            "A/B testing",
+            "Personalization with Liquid"
+          ],
+          "integrations": ["Segment", "Amplitude", "Snowflake", "mParticle"],
+          "dataFlows": [
+            {"direction": "inbound", "source": "Segment", "data": "User events and attributes"},
+            {"direction": "outbound", "destination": "Amplitude", "data": "Campaign engagement events"}
+          ],
+          "apiEndpoints": ["/campaigns/list", "/canvas/list", "/segments/list", "/users/export"]
+        }
+      ]
+    },
+    {
+      "name": "Customer Data Platform",
+      "description": "Unified customer data collection and distribution",
+      "tools": [
+        {
+          "name": "Segment",
+          "description": "Customer Data Platform for collecting, cleaning, and routing user data",
+          "capabilities": [
+            "Event tracking",
+            "User identification",
+            "Data routing to 300+ destinations",
+            "Identity resolution",
+            "Computed traits",
+            "Audiences",
+            "Data governance"
+          ],
+          "integrations": ["Braze", "Amplitude", "Mixpanel", "BigQuery", "Snowflake"],
+          "dataFlows": [
+            {"direction": "inbound", "source": "Web/Mobile Apps", "data": "User events"},
+            {"direction": "outbound", "destination": "Braze", "data": "User profiles and events"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "description": "Product and marketing analytics tools",
+      "tools": [
+        {
+          "name": "Amplitude",
+          "description": "Product analytics platform for understanding user behavior",
+          "capabilities": [
+            "Event analytics",
+            "Funnel analysis",
+            "Retention analysis",
+            "User cohorts",
+            "A/B test analysis",
+            "Predictive analytics"
+          ],
+          "integrations": ["Segment", "Braze", "Snowflake"],
+          "dataFlows": [
+            {"direction": "inbound", "source": "Segment", "data": "Product events"},
+            {"direction": "inbound", "source": "Braze", "data": "Campaign events"}
+          ]
+        },
+        {
+          "name": "Mixpanel",
+          "description": "Product analytics for tracking user interactions",
+          "capabilities": [
+            "Event tracking",
+            "Funnel reports",
+            "Retention reports",
+            "User flows"
+          ],
+          "integrations": ["Segment", "BigQuery"]
+        }
+      ]
+    },
+    {
+      "name": "Data Warehouse",
+      "description": "Centralized data storage and processing",
+      "tools": [
+        {
+          "name": "Snowflake",
+          "description": "Cloud data warehouse for storing and analyzing large datasets",
+          "capabilities": [
+            "SQL analytics",
+            "Data sharing",
+            "Semi-structured data support",
+            "Time travel",
+            "Zero-copy cloning"
+          ],
+          "integrations": ["Segment", "Braze", "dbt", "Looker"]
+        },
+        {
+          "name": "BigQuery",
+          "description": "Google Cloud data warehouse",
+          "capabilities": [
+            "Serverless SQL",
+            "ML integration",
+            "Real-time analytics",
+            "Geospatial analysis"
+          ],
+          "integrations": ["Google Analytics", "Segment", "Looker"]
+        }
+      ]
+    },
+    {
+      "name": "Attribution & Measurement",
+      "description": "Marketing attribution and measurement tools",
+      "tools": [
+        {
+          "name": "AppsFlyer",
+          "description": "Mobile attribution and marketing analytics",
+          "capabilities": [
+            "Install attribution",
+            "Deep linking",
+            "Fraud protection",
+            "ROI measurement"
+          ],
+          "integrations": ["Braze", "Segment", "Facebook Ads", "Google Ads"]
+        },
+        {
+          "name": "Branch",
+          "description": "Mobile linking and attribution platform",
+          "capabilities": [
+            "Deep linking",
+            "Attribution",
+            "Referrals",
+            "QR codes"
+          ],
+          "integrations": ["Braze", "Amplitude", "Segment"]
+        }
+      ]
+    }
+  ],
+  "dataFlows": [
+    {
+      "name": "User Event Pipeline",
+      "description": "How user events flow from app to analytics",
+      "source": "Mobile/Web App",
+      "destination": "Amplitude",
+      "path": ["App", "Segment", "Amplitude"],
+      "dataType": "Events"
+    },
+    {
+      "name": "Campaign Orchestration",
+      "description": "How user data enables personalized campaigns",
+      "source": "Segment",
+      "destination": "Braze",
+      "path": ["Segment", "Braze", "User Device"],
+      "dataType": "User Profiles"
+    },
+    {
+      "name": "Analytics Feedback Loop",
+      "description": "Campaign performance data flowing back to analytics",
+      "source": "Braze",
+      "destination": "Snowflake",
+      "path": ["Braze", "Currents", "Snowflake"],
+      "dataType": "Engagement Events"
+    }
+  ],
+  "faqs": [
+    {
+      "question": "How do I send a push notification?",
+      "answer": "Push notifications are sent through Braze. Create a campaign in Braze Dashboard > Messaging > Push, select your segment, compose your message, and schedule or send immediately."
+    },
+    {
+      "question": "How is user data collected?",
+      "answer": "User data is collected via Segment SDK in the app. Events and user traits are tracked, then routed to downstream tools like Braze (for engagement) and Amplitude (for analytics)."
+    },
+    {
+      "question": "How do I create a user segment?",
+      "answer": "Segments can be created in Braze (for messaging) or Segment (for data routing). In Braze, go to Segments > Create Segment and define filters based on user attributes or behaviors."
+    },
+    {
+      "question": "How do I track campaign performance?",
+      "answer": "Campaign performance is tracked in multiple places: Braze Dashboard for engagement metrics (opens, clicks), Amplitude for downstream conversion events, and Snowflake for custom analysis via SQL."
+    },
+    {
+      "question": "What is a Canvas in Braze?",
+      "answer": "Canvas is Braze's journey orchestration tool. It allows you to create multi-step, branching user journeys with different message types, delays, and decision splits based on user behavior."
+    }
+  ]
+}

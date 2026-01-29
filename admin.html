@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - MarTech Automation Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(to bottom right, #0f172a, #1e1b4b, #0f172a);
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body class="text-white p-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- Login Panel -->
+        <div id="loginPanel" class="mt-20">
+            <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-8 max-w-md mx-auto">
+                <h1 class="text-2xl font-bold mb-2 text-center">Admin Access</h1>
+                <p class="text-slate-400 text-center mb-6">MarTech Automation Hub</p>
+                <div class="space-y-4">
+                    <input type="password" id="adminPassword" placeholder="Enter admin password"
+                        class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-lg text-white"
+                        onkeypress="if(event.key==='Enter')login()">
+                    <button onclick="login()" class="w-full bg-purple-500 hover:bg-purple-600 px-6 py-3 rounded-lg font-medium">
+                        Login
+                    </button>
+                    <p id="loginError" class="text-red-400 text-center hidden">Invalid password</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Dashboard -->
+        <div id="adminDashboard" class="hidden">
+            <div class="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold mb-2">Admin Dashboard</h1>
+                    <p class="text-slate-400">Manage connectors and knowledge base</p>
+                </div>
+                <button onclick="logout()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg">
+                    Logout
+                </button>
+            </div>
+
+            <!-- Connectors -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- Braze Connector -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-br from-orange-500 to-pink-500 rounded-lg flex items-center justify-center font-bold">B</div>
+                        <div>
+                            <h3 class="font-semibold">Braze</h3>
+                            <p class="text-sm text-slate-400" id="brazeStatus">Not connected</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <input type="text" id="brazeEndpoint" placeholder="REST Endpoint (e.g., https://rest.iad-01.braze.com)"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                        <input type="password" id="brazeApiKey" placeholder="API Key"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                        <button onclick="saveBraze()" class="w-full bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded-lg text-sm">
+                            Save & Test Connection
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Google Drive Connector -->
+                <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center font-bold">G</div>
+                        <div>
+                            <h3 class="font-semibold">Google Drive</h3>
+                            <p class="text-sm text-slate-400" id="gdriveStatus">Not connected</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <input type="text" id="gdriveFolderId" placeholder="Folder ID"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                        <p class="text-xs text-slate-500">Google Drive integration requires OAuth setup. Contact engineering for service account credentials.</p>
+                        <button onclick="saveGdrive()" class="w-full bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded-lg text-sm" disabled>
+                            Coming Soon
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Knowledge Base Management -->
+            <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6 mb-8">
+                <h3 class="text-xl font-semibold mb-4">Knowledge Base</h3>
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div class="bg-slate-900/50 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-purple-400" id="toolCount">0</div>
+                        <div class="text-sm text-slate-400">Tools</div>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-blue-400" id="flowCount">0</div>
+                        <div class="text-sm text-slate-400">Data Flows</div>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-lg p-4 text-center">
+                        <div class="text-2xl font-bold text-green-400" id="faqCount">0</div>
+                        <div class="text-sm text-slate-400">FAQs</div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <textarea id="kbEditor" rows="10" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm font-mono"
+                        placeholder="Knowledge base JSON..."></textarea>
+                    <div class="flex gap-3">
+                        <button onclick="loadKB()" class="flex-1 bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded-lg text-sm">
+                            Load Current
+                        </button>
+                        <button onclick="saveKB()" class="flex-1 bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded-lg text-sm">
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Connected Users Preview -->
+            <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                <h3 class="text-xl font-semibold mb-4">End User View Preview</h3>
+                <p class="text-slate-400 mb-4">This is what end users see (no connector settings visible)</p>
+                <a href="/" target="_blank" class="inline-block bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded-lg text-sm">
+                    Open User View →
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PROXY_URL = 'https://ma-hub.vercel.app';
+        let adminToken = localStorage.getItem('adminToken');
+
+        // Check if already logged in
+        if (adminToken) {
+            showDashboard();
+        }
+
+        async function login() {
+            const password = document.getElementById('adminPassword').value;
+            try {
+                const res = await fetch(`${PROXY_URL}/api/admin-auth`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    adminToken = data.token;
+                    localStorage.setItem('adminToken', adminToken);
+                    showDashboard();
+                } else {
+                    document.getElementById('loginError').classList.remove('hidden');
+                }
+            } catch (e) {
+                document.getElementById('loginError').textContent = 'Connection error';
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('adminToken');
+            localStorage.removeItem('brazeConfig');
+            location.reload();
+        }
+
+        function showDashboard() {
+            document.getElementById('loginPanel').classList.add('hidden');
+            document.getElementById('adminDashboard').classList.remove('hidden');
+            loadConnectorStatus();
+            loadKBStats();
+        }
+
+        function loadConnectorStatus() {
+            const brazeConfig = JSON.parse(localStorage.getItem('brazeConfig') || '{}');
+            if (brazeConfig.apiKey) {
+                document.getElementById('brazeEndpoint').value = brazeConfig.restEndpoint || '';
+                document.getElementById('brazeApiKey').value = brazeConfig.apiKey || '';
+                document.getElementById('brazeStatus').textContent = 'Connected';
+                document.getElementById('brazeStatus').className = 'text-sm text-green-400';
+            }
+        }
+
+        async function saveBraze() {
+            const restEndpoint = document.getElementById('brazeEndpoint').value;
+            const apiKey = document.getElementById('brazeApiKey').value;
+
+            try {
+                const res = await fetch(`${PROXY_URL}/api/braze-campaigns`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey, restEndpoint, page: 0 })
+                });
+                const data = await res.json();
+
+                if (data.success || data.campaigns) {
+                    localStorage.setItem('brazeConfig', JSON.stringify({ apiKey, restEndpoint }));
+                    document.getElementById('brazeStatus').textContent = `Connected (${data.campaigns?.length || 0} campaigns)`;
+                    document.getElementById('brazeStatus').className = 'text-sm text-green-400';
+                    alert('Braze connected successfully!');
+                } else {
+                    throw new Error(data.error || 'Connection failed');
+                }
+            } catch (e) {
+                document.getElementById('brazeStatus').textContent = 'Connection failed';
+                document.getElementById('brazeStatus').className = 'text-sm text-red-400';
+                alert('Failed to connect: ' + e.message);
+            }
+        }
+
+        function saveGdrive() {
+            alert('Google Drive integration coming soon. Requires OAuth setup.');
+        }
+
+        async function loadKBStats() {
+            // For now, load from bundled data
+            // In production, this would fetch from API
+            document.getElementById('toolCount').textContent = '8';
+            document.getElementById('flowCount').textContent = '3';
+            document.getElementById('faqCount').textContent = '5';
+        }
+
+        function loadKB() {
+            // In production, fetch from server
+            alert('Knowledge base editor - fetch current KB from server');
+        }
+
+        function saveKB() {
+            const content = document.getElementById('kbEditor').value;
+            try {
+                JSON.parse(content);
+                // In production, save to server
+                alert('Knowledge base updated! (In production, this saves to server)');
+            } catch (e) {
+                alert('Invalid JSON: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -10,286 +10,253 @@
             background: linear-gradient(to bottom right, #0f172a, #581c87, #0f172a);
             min-height: 100vh;
         }
+        .typing-indicator span {
+            animation: typing 1.4s infinite;
+            animation-fill-mode: both;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
     </style>
 </head>
 <body class="text-white p-6">
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-4xl mx-auto">
         <!-- Header -->
-        <div class="mb-8 flex justify-between items-start">
-            <div>
-                <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                    MarTech Automation Hub
-                </h1>
-                <p class="text-slate-300">Query your marketing stack or run automated tasks</p>
-            </div>
-            <button onclick="toggleConfig()" id="connectBtn" class="flex items-center gap-2 px-4 py-2 rounded-lg border bg-slate-800 border-slate-700 hover:border-purple-500">
-                🔌 Connect Braze
-            </button>
-        </div>
-
-        <!-- Config Panel -->
-        <div id="configPanel" class="mb-8 bg-slate-800/50 border border-slate-700 rounded-xl p-6 hidden">
-            <h3 class="text-xl font-semibold mb-4">🔑 Braze API Configuration</h3>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-2">Proxy Server URL</label>
-                    <input type="text" id="proxyUrl" value="https://ma-hub.vercel.app" placeholder="https://ma-hub.vercel.app"
-                        class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-2">REST Endpoint</label>
-                    <input type="text" id="restEndpoint" placeholder="https://rest.iad-01.braze.com"
-                        class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-2">API Key</label>
-                    <input type="password" id="apiKey" placeholder="Your Braze REST API Key"
-                        class="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white">
-                </div>
-                <button onclick="testConnection()" class="w-full bg-purple-500 hover:bg-purple-600 px-6 py-3 rounded-lg font-medium">
-                    Test Connection
-                </button>
-            </div>
+        <div class="mb-8 text-center">
+            <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                MarTech Automation Hub
+            </h1>
+            <p class="text-slate-300">Ask anything about your marketing technology stack</p>
         </div>
 
         <!-- Search Bar -->
-        <div class="mb-8 relative">
-            <input type="text" id="searchInput" placeholder="Ask anything about your martech stack..."
-                class="w-full px-6 py-4 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-400">
-            <button onclick="runQuery()" class="absolute right-3 top-1/2 transform -translate-y-1/2 bg-purple-500 hover:bg-purple-600 px-6 py-2 rounded-lg">
-                🔍 Query
+        <div class="mb-6 relative">
+            <input type="text" id="searchInput" placeholder="Ask a question... (e.g., 'How do I send a push notification?')"
+                class="w-full px-6 py-4 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-400 pr-24"
+                onkeypress="if(event.key==='Enter')runQuery()">
+            <button onclick="runQuery()" class="absolute right-3 top-1/2 transform -translate-y-1/2 bg-purple-500 hover:bg-purple-600 px-5 py-2 rounded-lg">
+                Ask
             </button>
         </div>
 
-        <!-- Quick Actions -->
+        <!-- Quick Questions -->
         <div class="mb-8">
-            <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">Quick Actions</h3>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <button onclick="fetchCampaigns()" class="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg p-4 text-left">
-                    ⚡ List Braze campaigns
+            <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">Popular Questions</h3>
+            <div class="flex flex-wrap gap-2">
+                <button onclick="runQuery('How do I send a push notification?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    How do I send a push notification?
                 </button>
-                <button onclick="runQuery('email deliverability')" class="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg p-4 text-left">
-                    📧 Email deliverability
+                <button onclick="runQuery('What tools do we use for analytics?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    What tools for analytics?
                 </button>
-                <button onclick="runQuery('user journey')" class="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg p-4 text-left">
-                    📊 User journey map
+                <button onclick="runQuery('How is user data collected?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    How is user data collected?
                 </button>
-                <button onclick="runQuery('segment sync')" class="bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg p-4 text-left">
-                    💾 Segment sync health
+                <button onclick="runQuery('What is a Canvas in Braze?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    What is a Canvas?
+                </button>
+                <button onclick="runQuery('List all Braze campaigns')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
+                    List Braze campaigns
                 </button>
             </div>
         </div>
 
-        <!-- Results -->
-        <div id="results" class="bg-slate-800/50 border border-slate-700 rounded-xl p-6 hidden">
-            <h3 class="text-xl font-semibold mb-4">✅ Results</h3>
-            <div id="resultsList" class="space-y-3"></div>
+        <!-- Results Area -->
+        <div id="resultsArea" class="space-y-4">
+            <!-- Welcome message -->
+            <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span class="text-lg">🤖</span>
+                    </div>
+                    <div>
+                        <p class="text-slate-300">Hi! I'm your MarTech assistant. I can help you with:</p>
+                        <ul class="mt-2 text-slate-400 text-sm space-y-1">
+                            <li>• Understanding your marketing tools (Braze, Segment, Amplitude, etc.)</li>
+                            <li>• How data flows between systems</li>
+                            <li>• Creating campaigns and segments</li>
+                            <li>• Fetching live data from connected tools</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Loading -->
-        <div id="loading" class="hidden bg-slate-800/50 border border-slate-700 rounded-xl p-8 text-center">
-            <div class="animate-spin w-8 h-8 border-4 border-purple-400 border-t-transparent rounded-full mx-auto mb-3"></div>
-            <p class="text-slate-300">Processing your request...</p>
+        <div id="loading" class="hidden bg-slate-800/50 border border-slate-700 rounded-xl p-6 mt-4">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span class="text-lg">🤖</span>
+                </div>
+                <div class="typing-indicator flex gap-1">
+                    <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
+                    <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
+                    <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        let isConnected = false;
-        let config = {
-            proxyUrl: 'https://ma-hub.vercel.app',
-            restEndpoint: '',
-            apiKey: '',
-            isDirect: false
-        };
+        const PROXY_URL = 'https://ma-hub.vercel.app';
 
-        function toggleConfig() {
-            const panel = document.getElementById('configPanel');
-            panel.classList.toggle('hidden');
-        }
+        // Load admin-configured Braze settings (stored by admin)
+        const brazeConfig = JSON.parse(localStorage.getItem('brazeConfig') || '{}');
 
-        async function testConnection() {
+        async function runQuery(presetQuery) {
+            const query = presetQuery || document.getElementById('searchInput').value.trim();
+            if (!query) return;
+
+            document.getElementById('searchInput').value = '';
             showLoading(true);
-            config.proxyUrl = document.getElementById('proxyUrl').value;
-            config.restEndpoint = document.getElementById('restEndpoint').value;
-            config.apiKey = document.getElementById('apiKey').value;
 
-            // Try direct connection first (may work in some environments)
+            // Add user message
+            addMessage('user', query);
+
+            // Check if this is a Braze data request
+            const isBrazeQuery = /braze|campaign|canvas|segment/i.test(query) &&
+                                 /list|show|get|fetch|all/i.test(query);
+
             try {
-                const testRes = await fetch(`${config.restEndpoint}/campaigns/list`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${config.apiKey}`
-                    },
-                    body: JSON.stringify({ page: 0, include_archived: false, limit: 5 })
-                });
+                let response = '';
 
-                const data = await testRes.json();
-
-                if (testRes.ok && data.campaigns) {
-                    isConnected = true;
-                    config.isDirect = true;
-                    document.getElementById('connectBtn').innerHTML = '✅ Connected to Braze (Direct)';
-                    document.getElementById('connectBtn').className = 'flex items-center gap-2 px-4 py-2 rounded-lg border bg-green-500/20 border-green-500 text-green-400';
-                    document.getElementById('configPanel').classList.add('hidden');
-                    showResults([
-                        { status: 'success', title: 'Braze Connected! (Direct)', detail: `Found ${data.campaigns.length} campaigns - direct connection working!` }
-                    ]);
-                    showLoading(false);
-                    return;
-                } else {
-                    throw new Error(data.message || 'Check credentials');
-                }
-            } catch (directError) {
-                // Direct didn't work, try proxy
-                try {
-                    const configRes = await fetch(`${config.proxyUrl}/api/config`, {
+                if (isBrazeQuery && brazeConfig.apiKey) {
+                    // Fetch from Braze API
+                    const brazeRes = await fetch(`${PROXY_URL}/api/braze-campaigns`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            apiKey: config.apiKey,
-                            restEndpoint: config.restEndpoint
+                            apiKey: brazeConfig.apiKey,
+                            restEndpoint: brazeConfig.restEndpoint,
+                            page: 0
                         })
                     });
+                    const brazeData = await brazeRes.json();
 
-                    if (!configRes.ok) throw new Error('Proxy not responding');
+                    if (brazeData.campaigns && brazeData.campaigns.length > 0) {
+                        const sortedCampaigns = [...brazeData.campaigns].sort((a, b) => {
+                            const dateA = new Date(a.last_edited || a.created_at);
+                            const dateB = new Date(b.last_edited || b.created_at);
+                            return dateB - dateA;
+                        });
 
-                    const testRes = await fetch(`${config.proxyUrl}/api/braze-campaigns`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            apiKey: config.apiKey,
-                            restEndpoint: config.restEndpoint,
-                            page: 0,
-                            include_archived: false,
-                            limit: 5
-                        })
-                    });
-
-                    const data = await testRes.json();
-
-                    if (testRes.ok && data.campaigns) {
-                        isConnected = true;
-                        config.isDirect = false;
-                        document.getElementById('connectBtn').innerHTML = '✅ Connected to Braze (via Proxy)';
-                        document.getElementById('connectBtn').className = 'flex items-center gap-2 px-4 py-2 rounded-lg border bg-green-500/20 border-green-500 text-green-400';
-                        document.getElementById('configPanel').classList.add('hidden');
-                        showResults([
-                            { status: 'success', title: 'Braze Connected!', detail: `Found ${data.campaigns.length} campaigns via proxy` }
-                        ]);
+                        response = `Found **${sortedCampaigns.length} campaigns** in Braze:\n\n`;
+                        sortedCampaigns.slice(0, 10).forEach((c, i) => {
+                            const date = new Date(c.last_edited || c.created_at);
+                            response += `${i + 1}. **${c.name}**\n   Last edited: ${date.toLocaleString()}\n\n`;
+                        });
+                        if (sortedCampaigns.length > 10) {
+                            response += `\n_...and ${sortedCampaigns.length - 10} more campaigns_`;
+                        }
                     } else {
-                        throw new Error(data.message || 'Check credentials');
+                        response = 'No campaigns found in Braze, or Braze connection not configured by admin.';
                     }
-                } catch (proxyError) {
-                    showResults([
-                        { status: 'warning', title: 'Connection Failed', detail: 'Neither direct nor proxy connection worked' },
-                        { status: 'info', title: 'Direct Error', detail: directError.message },
-                        { status: 'info', title: 'Proxy Error', detail: proxyError.message },
-                        { status: 'info', title: 'Solution', detail: 'Make sure your Vercel proxy is deployed correctly' }
-                    ]);
-                }
-            }
-            showLoading(false);
-        }
-
-        async function fetchCampaigns() {
-            if (!isConnected) {
-                alert('Please connect to Braze first!');
-                toggleConfig();
-                return;
-            }
-
-            showLoading(true);
-            try {
-                let res;
-                if (config.isDirect) {
-                    // Direct connection
-                    res = await fetch(`${config.restEndpoint}/campaigns/list`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${config.apiKey}`
-                        },
-                        body: JSON.stringify({ page: 0, include_archived: false, limit: 10 })
-                    });
                 } else {
-                    // Via proxy
-                    res = await fetch(`${config.proxyUrl}/api/braze-campaigns`, {
+                    // Search knowledge base
+                    const kbRes = await fetch(`${PROXY_URL}/api/knowledge`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            apiKey: config.apiKey,
-                            restEndpoint: config.restEndpoint,
-                            page: 0,
-                            include_archived: false,
-                            limit: 10
-                        })
+                        body: JSON.stringify({ query })
                     });
+                    const kbData = await kbRes.json();
+
+                    if (kbData.success && kbData.totalResults > 0) {
+                        response = formatKBResponse(query, kbData.results);
+                    } else {
+                        response = `I couldn't find specific information about "${query}" in the knowledge base. Try asking about:\n\n• Specific tools (Braze, Segment, Amplitude)\n• Data flows and integrations\n• How to perform common tasks`;
+                    }
                 }
 
-                const data = await res.json();
+                showLoading(false);
+                addMessage('assistant', response);
 
-                if (data.campaigns) {
-                    // Sort by last_edited or created_at (most recent first)
-                    const sortedCampaigns = [...data.campaigns].sort((a, b) => {
-                        const dateA = new Date(a.last_edited || a.created_at);
-                        const dateB = new Date(b.last_edited || b.created_at);
-                        return dateB - dateA;
-                    });
-
-                    const results = [
-                        { status: 'success', title: 'Active Campaigns (REAL DATA)', detail: `Found ${sortedCampaigns.length} campaigns from your Braze workspace (sorted by most recent)` },
-                        ...sortedCampaigns.map(c => {
-                            const lastEdited = c.last_edited ? new Date(c.last_edited) : null;
-                            const created = new Date(c.created_at);
-                            const displayDate = lastEdited || created;
-                            const dateLabel = lastEdited ? 'Last edited' : 'Created';
-
-                            return {
-                                status: 'info',
-                                title: c.name,
-                                detail: `ID: ${c.id} | ${dateLabel}: ${displayDate.toLocaleString(undefined, {
-                                    dateStyle: 'medium',
-                                    timeStyle: 'short'
-                                })}`
-                            };
-                        })
-                    ];
-                    showResults(results);
-                } else {
-                    showResults([{ status: 'warning', title: 'No campaigns found', detail: data.message }]);
-                }
             } catch (error) {
-                showResults([{ status: 'warning', title: 'Fetch failed', detail: error.message }]);
+                showLoading(false);
+                addMessage('assistant', `Sorry, I encountered an error: ${error.message}. Please try again.`);
             }
-            showLoading(false);
         }
 
-        function runQuery(text) {
-            const query = text || document.getElementById('searchInput').value;
-            showResults([
-                { status: 'info', title: 'Query received', detail: query },
-                { status: 'success', title: 'Demo mode', detail: 'Connect Braze for real data' }
-            ]);
+        function formatKBResponse(query, results) {
+            let response = '';
+
+            // Check for FAQ matches first
+            if (results.faqs && results.faqs.length > 0) {
+                const faq = results.faqs[0];
+                response += `**${faq.question}**\n\n${faq.answer}\n\n`;
+            }
+
+            // Add tool information
+            if (results.tools && results.tools.length > 0) {
+                if (!results.faqs || results.faqs.length === 0) {
+                    response += `Here's what I found:\n\n`;
+                }
+
+                results.tools.slice(0, 3).forEach(tool => {
+                    response += `**${tool.tool}** (${tool.category})\n`;
+                    response += `${tool.description}\n\n`;
+
+                    if (tool.capabilities && tool.capabilities.length > 0) {
+                        response += `Key capabilities:\n`;
+                        tool.capabilities.slice(0, 5).forEach(cap => {
+                            response += `• ${cap}\n`;
+                        });
+                        response += '\n';
+                    }
+
+                    if (tool.integrations && tool.integrations.length > 0) {
+                        response += `Integrates with: ${tool.integrations.join(', ')}\n\n`;
+                    }
+                });
+            }
+
+            // Add data flow information
+            if (results.dataFlows && results.dataFlows.length > 0) {
+                response += `**Related Data Flows:**\n`;
+                results.dataFlows.forEach(flow => {
+                    response += `• ${flow.name}: ${flow.source} → ${flow.destination}\n`;
+                    response += `  _${flow.description}_\n`;
+                });
+            }
+
+            return response || `I found some information but couldn't format it properly. Try a more specific question.`;
         }
 
-        function showResults(results) {
-            const container = document.getElementById('resultsList');
-            container.innerHTML = results.map(r => `
-                <div class="bg-slate-900/50 border border-slate-700 rounded-lg p-4 flex items-start gap-3">
-                    <span class="text-2xl">${r.status === 'success' ? '✅' : r.status === 'warning' ? '⚠️' : 'ℹ️'}</span>
-                    <div>
-                        <div class="font-semibold">${r.title}</div>
-                        <div class="text-sm text-slate-400">${r.detail}</div>
+        function addMessage(role, content) {
+            const resultsArea = document.getElementById('resultsArea');
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'bg-slate-800/50 border border-slate-700 rounded-xl p-6';
+
+            const isUser = role === 'user';
+            const avatar = isUser ? '👤' : '🤖';
+            const bgGradient = isUser ? 'from-slate-500 to-slate-600' : 'from-purple-500 to-pink-500';
+
+            // Convert markdown-like formatting to HTML
+            let formattedContent = content
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/_(.*?)_/g, '<em>$1</em>')
+                .replace(/\n/g, '<br>');
+
+            messageDiv.innerHTML = `
+                <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 bg-gradient-to-br ${bgGradient} rounded-full flex items-center justify-center flex-shrink-0">
+                        <span class="text-lg">${avatar}</span>
+                    </div>
+                    <div class="flex-1 text-slate-300 leading-relaxed">
+                        ${formattedContent}
                     </div>
                 </div>
-            `).join('');
-            document.getElementById('results').classList.remove('hidden');
+            `;
+
+            resultsArea.appendChild(messageDiv);
+            messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
 
         function showLoading(show) {
             document.getElementById('loading').classList.toggle('hidden', !show);
-            document.getElementById('results').classList.toggle('hidden', show);
         }
     </script>
 </body>
