@@ -139,10 +139,10 @@
 
             // Check if this is a Braze data request (live data)
             const isBrazeDataQuery = (
-                // Explicit list/show requests
-                (/braze|campaign|canvas/i.test(query) && /list|show|get|fetch|all|active|running|current|recent/i.test(query)) ||
-                // Questions about campaign counts or status
-                (/how many|what are|which/i.test(query) && /campaign|canvas/i.test(query)) ||
+                // Any question about campaigns/canvases that implies needing live data
+                (/campaign|canvas/i.test(query) && /list|show|get|fetch|all|active|running|current|recent|scheduled|next|upcoming|when|status|how many|what are|which/i.test(query)) ||
+                // Direct braze data queries
+                (/braze/i.test(query) && /campaign|canvas|data|scheduled|active/i.test(query)) ||
                 // Direct campaign queries
                 /^list (all )?(braze )?campaigns?$/i.test(query.trim())
             );
@@ -163,6 +163,9 @@
                     });
                     const brazeData = await brazeRes.json();
 
+                    // Check if asking about schedules specifically
+                    const isScheduleQuery = /scheduled|next|upcoming|when|schedule/i.test(query);
+
                     if (brazeData.campaigns && brazeData.campaigns.length > 0) {
                         const sortedCampaigns = [...brazeData.campaigns].sort((a, b) => {
                             const dateA = new Date(a.last_edited || a.created_at);
@@ -170,13 +173,24 @@
                             return dateB - dateA;
                         });
 
-                        response = `Found **${sortedCampaigns.length} campaigns** in Braze:\n\n`;
-                        sortedCampaigns.slice(0, 10).forEach((c, i) => {
-                            const date = new Date(c.last_edited || c.created_at);
-                            response += `${i + 1}. **${c.name}**\n   Last edited: ${date.toLocaleString()}\n\n`;
-                        });
-                        if (sortedCampaigns.length > 10) {
-                            response += `\n_...and ${sortedCampaigns.length - 10} more campaigns_`;
+                        if (isScheduleQuery) {
+                            response = `**Campaign Schedule Information**\n\nI found **${sortedCampaigns.length} campaigns** in Braze. Here are the most recently active:\n\n`;
+                            sortedCampaigns.slice(0, 8).forEach((c, i) => {
+                                const date = new Date(c.last_edited || c.created_at);
+                                const isDraft = c.draft ? ' _(draft)_' : '';
+                                response += `${i + 1}. **${c.name}**${isDraft}\n   Last updated: ${date.toLocaleString()}\n\n`;
+                            });
+                            response += `\n_Note: For detailed scheduling info (send times, triggers), check the campaign directly in Braze Dashboard._`;
+                        } else {
+                            response = `Found **${sortedCampaigns.length} campaigns** in Braze:\n\n`;
+                            sortedCampaigns.slice(0, 10).forEach((c, i) => {
+                                const date = new Date(c.last_edited || c.created_at);
+                                const isDraft = c.draft ? ' _(draft)_' : '';
+                                response += `${i + 1}. **${c.name}**${isDraft}\n   Last edited: ${date.toLocaleString()}\n\n`;
+                            });
+                            if (sortedCampaigns.length > 10) {
+                                response += `\n_...and ${sortedCampaigns.length - 10} more campaigns_`;
+                            }
                         }
                     } else if (!brazeConfig.apiKey) {
                         response = '**Braze not connected**\n\nTo fetch live campaign data, an admin needs to configure Braze credentials in the [Admin Panel](/admin.html).\n\nOnce connected, I can show you:\n• Active campaigns\n• Recent canvases\n• Campaign performance data';
