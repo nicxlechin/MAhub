@@ -22,8 +22,8 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    // Test connection by fetching base schema
-    const response = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
+    // First try the metadata API (requires schema.bases:read scope)
+    const metaResponse = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -31,32 +31,76 @@ module.exports = async function handler(req, res) {
       }
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      if (response.status === 401) {
+    if (metaResponse.ok) {
+      const data = await metaResponse.json();
+      const tables = data.tables || [];
+      return res.status(200).json({
+        success: true,
+        message: 'Connection successful',
+        tableCount: tables.length,
+        tables: tables.map(t => ({ id: t.id, name: t.name }))
+      });
+    }
+
+    // If metadata API fails, try a simple base access test
+    // This works with just data.records:read scope
+    const error = await metaResponse.json();
+
+    if (metaResponse.status === 403 || (error.error?.type === 'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND')) {
+      // Try alternative: just verify we can access the base
+      // We'll try to list from a dummy table - if base is valid, we get "table not found" not "base not found"
+      const testResponse = await fetch(`https://api.airtable.com/v0/${baseId}/_test_connection_?maxRecords=1`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+
+      const testError = await testResponse.json();
+
+      // If we get "table not found", the base ID and API key are valid
+      if (testError.error?.type === 'TABLE_NOT_FOUND' || testError.error?.message?.includes('Could not find table')) {
+        return res.status(200).json({
+          success: true,
+          message: 'Connection successful (limited access)',
+          note: 'API key valid but lacks schema.bases:read scope. Add this scope in Airtable to see table list.',
+          tableCount: null,
+          tables: []
+        });
+      }
+
+      // If unauthorized, the API key is wrong
+      if (testResponse.status === 401) {
         return res.status(401).json({
           success: false,
           error: 'Invalid API key'
         });
       }
-      if (response.status === 404) {
+
+      // If we get a different error, base might not exist
+      if (testResponse.status === 404 || testError.error?.type === 'NOT_FOUND') {
         return res.status(404).json({
           success: false,
           error: 'Base not found - check your Base ID'
         });
       }
-      throw new Error(error.error?.message || 'Airtable API error');
     }
 
-    const data = await response.json();
-    const tables = data.tables || [];
+    if (metaResponse.status === 401) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid API key'
+      });
+    }
 
-    return res.status(200).json({
-      success: true,
-      message: 'Connection successful',
-      tableCount: tables.length,
-      tables: tables.map(t => ({ id: t.id, name: t.name }))
-    });
+    if (metaResponse.status === 404) {
+      return res.status(404).json({
+        success: false,
+        error: 'Base not found - check your Base ID'
+      });
+    }
+
+    throw new Error(error.error?.message || 'Airtable API error');
 
   } catch (error) {
     console.error('Airtable config error:', error);

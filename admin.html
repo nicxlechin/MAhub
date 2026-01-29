@@ -272,9 +272,15 @@
 
                 if (data.success) {
                     localStorage.setItem('airtableConfig', JSON.stringify({ apiKey, baseId }));
-                    document.getElementById('airtableStatus').textContent = `Connected (${data.tableCount} tables)`;
-                    document.getElementById('airtableStatus').className = 'text-sm text-green-400';
-                    alert(`Airtable connected successfully!\n\nFound ${data.tableCount} tables:\n${data.tables.map(t => '- ' + t.name).join('\n')}`);
+                    if (data.tableCount !== null) {
+                        document.getElementById('airtableStatus').textContent = `Connected (${data.tableCount} tables)`;
+                        document.getElementById('airtableStatus').className = 'text-sm text-green-400';
+                        alert(`Airtable connected successfully!\n\nFound ${data.tableCount} tables:\n${data.tables.map(t => '- ' + t.name).join('\n')}`);
+                    } else {
+                        document.getElementById('airtableStatus').textContent = 'Connected (limited)';
+                        document.getElementById('airtableStatus').className = 'text-sm text-yellow-400';
+                        alert(`Airtable connected!\n\n${data.note || 'Connection verified but cannot list tables.'}`);
+                    }
                 } else {
                     throw new Error(data.error || 'Connection failed');
                 }
