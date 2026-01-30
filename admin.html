@@ -100,9 +100,11 @@
                         </div>
                     </div>
                     <div class="space-y-3">
-                        <input type="password" id="airtableApiKey" placeholder="API Key (Personal Access Token)"
+                        <input type="password" id="airtableApiKey" placeholder="Personal Access Token"
                             class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
                         <input type="text" id="airtableBaseId" placeholder="Base ID (e.g., appXXXXXXXXXXXXXX)"
+                            class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                        <input type="text" id="airtableTableName" placeholder="Table name (optional, for testing)"
                             class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
                         <button onclick="saveAirtable()" class="w-full bg-purple-500 hover:bg-purple-600 px-4 py-2 rounded-lg text-sm">
                             Save & Test Connection
@@ -245,6 +247,7 @@
             if (airtableConfig.apiKey) {
                 document.getElementById('airtableApiKey').value = airtableConfig.apiKey || '';
                 document.getElementById('airtableBaseId').value = airtableConfig.baseId || '';
+                document.getElementById('airtableTableName').value = airtableConfig.tableName || '';
                 document.getElementById('airtableStatus').textContent = 'Connected';
                 document.getElementById('airtableStatus').className = 'text-sm text-green-400';
             }
@@ -253,6 +256,7 @@
         async function saveAirtable() {
             const apiKey = document.getElementById('airtableApiKey').value;
             const baseId = document.getElementById('airtableBaseId').value;
+            const tableName = document.getElementById('airtableTableName').value;
 
             if (!apiKey || !baseId) {
                 alert('Please enter both API Key and Base ID');
@@ -263,24 +267,21 @@
                 document.getElementById('airtableStatus').textContent = 'Testing...';
                 document.getElementById('airtableStatus').className = 'text-sm text-yellow-400';
 
+                const payload = { apiKey, baseId };
+                if (tableName) payload.tableName = tableName;
+
                 const res = await fetch(`${PROXY_URL}/api/airtable-config`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiKey, baseId })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json();
 
                 if (data.success) {
-                    localStorage.setItem('airtableConfig', JSON.stringify({ apiKey, baseId }));
-                    if (data.tableCount !== null) {
-                        document.getElementById('airtableStatus').textContent = `Connected (${data.tableCount} tables)`;
-                        document.getElementById('airtableStatus').className = 'text-sm text-green-400';
-                        alert(`Airtable connected successfully!\n\nFound ${data.tableCount} tables:\n${data.tables.map(t => '- ' + t.name).join('\n')}`);
-                    } else {
-                        document.getElementById('airtableStatus').textContent = 'Connected (limited)';
-                        document.getElementById('airtableStatus').className = 'text-sm text-yellow-400';
-                        alert(`Airtable connected!\n\n${data.note || 'Connection verified but cannot list tables.'}`);
-                    }
+                    localStorage.setItem('airtableConfig', JSON.stringify({ apiKey, baseId, tableName }));
+                    document.getElementById('airtableStatus').textContent = 'Connected';
+                    document.getElementById('airtableStatus').className = 'text-sm text-green-400';
+                    alert(`Airtable connected successfully!\n\n${data.note || data.message}`);
                 } else {
                     throw new Error(data.error || 'Connection failed');
                 }
