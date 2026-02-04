@@ -95,11 +95,12 @@ module.exports = async function handler(req, res) {
       if (errorType === 'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND') {
         return res.status(403).json({
           success: false,
-          error: 'Permission denied - make sure your token has access to this base'
+          error: `Permission denied. Airtable says: "${errorMsg}". Base ID used: ${baseId.substring(0, 6)}...`
         });
       }
 
-      throw new Error(errorMsg || 'Airtable API error');
+      // Return full error for debugging
+      throw new Error(`${errorType}: ${errorMsg}`);
     }
 
     // If somehow we got here with a success response
