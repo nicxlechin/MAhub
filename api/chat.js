@@ -132,6 +132,20 @@ function buildContext(question, kb, liveData) {
         context += `${i + 1}. ${c.name} (${status}, last edited: ${date})\n`;
       });
     }
+
+    if (liveData.airtableRecords && liveData.airtableRecords.length > 0) {
+      const records = liveData.airtableRecords;
+      context += `\nAirtable Data (${liveData.airtableTableName || 'table'}, ${records.length} records):\n`;
+      records.slice(0, 20).forEach((r, i) => {
+        // Get the main fields (skip internal ones)
+        const fields = Object.entries(r)
+          .filter(([k]) => !k.startsWith('_') && k !== 'id')
+          .slice(0, 5)
+          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+          .join(', ');
+        context += `${i + 1}. ${fields}\n`;
+      });
+    }
   }
 
   return context;
@@ -192,6 +206,61 @@ function generateIntelligentAnswer(question, kb, liveData) {
         return response;
       } else {
         return `No campaigns found matching "${searchMatch[2]}". You have ${campaigns.length} campaigns in Braze.`;
+      }
+    }
+  }
+
+  // Check for Airtable data queries
+  if (liveData?.airtableRecords && liveData.airtableRecords.length > 0) {
+    const records = liveData.airtableRecords;
+    const tableName = liveData.airtableTableName || 'records';
+
+    // List/show/what records
+    if (/list|show|what|which|all/i.test(q) && !(/campaign/i.test(q))) {
+      let response = `**${tableName}** (${records.length} records):\n\n`;
+      records.slice(0, 15).forEach((r, i) => {
+        // Find the "name" or first text field
+        const nameField = r.Name || r.name || r.Title || r.title || Object.values(r).find(v => typeof v === 'string' && !v.startsWith('rec'));
+        const otherFields = Object.entries(r)
+          .filter(([k, v]) => !k.startsWith('_') && k !== 'id' && k.toLowerCase() !== 'name' && k.toLowerCase() !== 'title')
+          .slice(0, 3)
+          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v).slice(0, 50) : String(v).slice(0, 50)}`)
+          .join(' | ');
+        response += `${i + 1}. **${nameField || 'Record ' + (i+1)}**\n   ${otherFields}\n\n`;
+      });
+      if (records.length > 15) {
+        response += `_...and ${records.length - 15} more_`;
+      }
+      return response;
+    }
+
+    // How many records
+    if (/how many|count|total/i.test(q)) {
+      return `You have **${records.length} records** in your ${tableName} table.`;
+    }
+
+    // Search for specific item
+    const searchTerms = q.match(/(?:called|named|about|for|find|search)\s+["']?([^"'?]+)/i);
+    if (searchTerms) {
+      const term = searchTerms[1].trim().toLowerCase();
+      const matches = records.filter(r => {
+        return Object.values(r).some(v =>
+          String(v).toLowerCase().includes(term)
+        );
+      });
+      if (matches.length > 0) {
+        let response = `**Found ${matches.length} matching record(s):**\n\n`;
+        matches.slice(0, 10).forEach((r, i) => {
+          const fields = Object.entries(r)
+            .filter(([k]) => !k.startsWith('_') && k !== 'id')
+            .slice(0, 4)
+            .map(([k, v]) => `**${k}:** ${typeof v === 'object' ? JSON.stringify(v).slice(0, 50) : String(v).slice(0, 50)}`)
+            .join('\n   ');
+          response += `${i + 1}. ${fields}\n\n`;
+        });
+        return response;
+      } else {
+        return `No records found matching "${searchTerms[1]}" in your ${tableName} table.`;
       }
     }
   }
@@ -277,9 +346,20 @@ function generateIntelligentAnswer(question, kb, liveData) {
   }
 
   // Generic but still helpful response
+  const suggestions = [];
+
   if (liveData?.brazeConnected) {
-    return `I'm not sure about that specific question, but I can help you with:\n\n**Your Connected Data:**\n• "List my campaigns" - See all Braze campaigns\n• "How many campaigns?" - Get campaign count\n• "Recent campaigns" - See latest activity\n\n**Knowledge Base:**\n• Lead scoring and predictive models\n• Data flows and integrations\n• Compliance (GDPR, consent)\n• Tool capabilities (Braze, Segment, Amplitude)`;
+    suggestions.push('**Braze Data:**\n• "List my campaigns"\n• "How many campaigns?"\n• "Recent campaigns"');
   }
 
-  return `I can help you with MarTech questions! Try asking:\n\n• "How does lead scoring work?"\n• "What channels does Braze support?"\n• "Explain predictive churn"\n• "What is MTA vs MMM?"\n• "GDPR compliance requirements"\n\n_Connect Braze in Admin to query live campaign data._`;
+  if (liveData?.airtableRecords) {
+    const tableName = liveData.airtableTableName || 'Airtable';
+    suggestions.push(`**${tableName} Data:**\n• "What DNAs do we have?"\n• "List all records"\n• "How many records?"`);
+  }
+
+  if (suggestions.length > 0) {
+    return `I'm not sure about that specific question, but I can help with:\n\n${suggestions.join('\n\n')}\n\n**Knowledge Base:**\n• Lead scoring and predictive models\n• Data flows and integrations\n• Compliance (GDPR, consent)`;
+  }
+
+  return `I can help you with MarTech questions! Try asking:\n\n• "How does lead scoring work?"\n• "What channels does Braze support?"\n• "Explain predictive churn"\n• "What is MTA vs MMM?"\n\n_Connect Braze/Airtable in Admin to query live data._`;
 }

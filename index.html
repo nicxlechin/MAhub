@@ -145,11 +145,9 @@
 
                 // Determine what data sources to query based on the question
                 const needsBraze = brazeConfig.apiKey && (
-                    /campaign|canvas|braze|email|push|sms|message|send|segment/i.test(query)
+                    /campaign|canvas|braze|email|push|sms|message|send/i.test(query)
                 );
-                const needsAirtable = airtableConfig.apiKey && (
-                    /airtable|calendar|schedule|content|planning|asset/i.test(query)
-                );
+                const needsAirtable = airtableConfig.apiKey && airtableConfig.tableName;
 
                 // Fetch Braze data if relevant
                 let brazeData = null;
@@ -170,11 +168,33 @@
                     }
                 }
 
+                // Fetch Airtable data if connected
+                let airtableData = null;
+                if (needsAirtable) {
+                    try {
+                        const airtableRes = await fetch(`${PROXY_URL}/api/airtable-data`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                apiKey: airtableConfig.apiKey,
+                                baseId: airtableConfig.baseId,
+                                tableName: airtableConfig.tableName,
+                                maxRecords: 100
+                            })
+                        });
+                        airtableData = await airtableRes.json();
+                    } catch (e) {
+                        console.error('Airtable fetch error:', e);
+                    }
+                }
+
                 // Build context for AI with live data
                 const liveContext = {
                     brazeConnected: !!brazeConfig.apiKey,
                     airtableConnected: !!airtableConfig.apiKey,
-                    brazeCampaigns: brazeData?.campaigns || null
+                    airtableTableName: airtableConfig.tableName || null,
+                    brazeCampaigns: brazeData?.campaigns || null,
+                    airtableRecords: airtableData?.records || null
                 };
 
                 // Send to AI chat endpoint with context
