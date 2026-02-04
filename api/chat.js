@@ -133,17 +133,18 @@ function buildContext(question, kb, liveData) {
       });
     }
 
-    if (liveData.airtableRecords && liveData.airtableRecords.length > 0) {
-      const records = liveData.airtableRecords;
-      context += `\nAirtable Data (${liveData.airtableTableName || 'table'}, ${records.length} records):\n`;
-      records.slice(0, 20).forEach((r, i) => {
-        // Get the main fields (skip internal ones)
-        const fields = Object.entries(r)
-          .filter(([k]) => !k.startsWith('_') && k !== 'id')
-          .slice(0, 5)
-          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
-          .join(', ');
-        context += `${i + 1}. ${fields}\n`;
+    if (liveData.airtableTables && liveData.airtableTables.length > 0) {
+      context += `\nAirtable Data:\n`;
+      liveData.airtableTables.forEach(table => {
+        context += `\nTable: "${table.tableName}" (${table.records.length} records):\n`;
+        table.records.slice(0, 15).forEach((r, i) => {
+          const fields = Object.entries(r)
+            .filter(([k]) => !k.startsWith('_') && k !== 'id')
+            .slice(0, 5)
+            .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v).slice(0, 100) : String(v).slice(0, 100)}`)
+            .join(', ');
+          context += `${i + 1}. ${fields}\n`;
+        });
       });
     }
   }
@@ -211,18 +212,36 @@ function generateIntelligentAnswer(question, kb, liveData) {
   }
 
   // Check for Airtable data queries
-  if (liveData?.airtableRecords && liveData.airtableRecords.length > 0) {
-    const records = liveData.airtableRecords;
-    const tableName = liveData.airtableTableName || 'records';
+  if (liveData?.airtableTables && liveData.airtableTables.length > 0) {
+    // Find relevant table based on question keywords
+    const findRelevantTable = () => {
+      for (const table of liveData.airtableTables) {
+        const tableNameLower = table.tableName.toLowerCase();
+        // Check if question mentions this table or related terms
+        if (q.includes(tableNameLower) ||
+            (tableNameLower.includes('dna') && /dna/i.test(q)) ||
+            (tableNameLower.includes('calendar') && /calendar|schedule/i.test(q)) ||
+            (tableNameLower.includes('content') && /content/i.test(q)) ||
+            (tableNameLower.includes('campaign') && /campaign/i.test(q))) {
+          return table;
+        }
+      }
+      // Default to first table if no specific match
+      return liveData.airtableTables[0];
+    };
 
-    // List/show/what records
-    if (/list|show|what|which|all/i.test(q) && !(/campaign/i.test(q))) {
+    const relevantTable = findRelevantTable();
+    const records = relevantTable.records;
+    const tableName = relevantTable.tableName;
+
+    // List/show/what records (but not campaigns - those go to Braze)
+    if (/list|show|what|which|all|have/i.test(q) && !/campaign|canvas|braze/i.test(q)) {
       let response = `**${tableName}** (${records.length} records):\n\n`;
       records.slice(0, 15).forEach((r, i) => {
-        // Find the "name" or first text field
-        const nameField = r.Name || r.name || r.Title || r.title || Object.values(r).find(v => typeof v === 'string' && !v.startsWith('rec'));
+        const nameField = r.Name || r.name || r.Title || r.title ||
+          Object.values(r).find(v => typeof v === 'string' && v.length > 2 && !v.startsWith('rec'));
         const otherFields = Object.entries(r)
-          .filter(([k, v]) => !k.startsWith('_') && k !== 'id' && k.toLowerCase() !== 'name' && k.toLowerCase() !== 'title')
+          .filter(([k]) => !k.startsWith('_') && k !== 'id' && k.toLowerCase() !== 'name' && k.toLowerCase() !== 'title')
           .slice(0, 3)
           .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v).slice(0, 50) : String(v).slice(0, 50)}`)
           .join(' | ');
@@ -235,32 +254,48 @@ function generateIntelligentAnswer(question, kb, liveData) {
     }
 
     // How many records
-    if (/how many|count|total/i.test(q)) {
-      return `You have **${records.length} records** in your ${tableName} table.`;
+    if (/how many|count|total/i.test(q) && !/campaign/i.test(q)) {
+      let response = '';
+      liveData.airtableTables.forEach(t => {
+        response += `• **${t.tableName}**: ${t.records.length} records\n`;
+      });
+      return `**Your Airtable Data:**\n\n${response}`;
     }
 
-    // Search for specific item
-    const searchTerms = q.match(/(?:called|named|about|for|find|search)\s+["']?([^"'?]+)/i);
-    if (searchTerms) {
-      const term = searchTerms[1].trim().toLowerCase();
-      const matches = records.filter(r => {
-        return Object.values(r).some(v =>
-          String(v).toLowerCase().includes(term)
-        );
-      });
-      if (matches.length > 0) {
-        let response = `**Found ${matches.length} matching record(s):**\n\n`;
-        matches.slice(0, 10).forEach((r, i) => {
-          const fields = Object.entries(r)
-            .filter(([k]) => !k.startsWith('_') && k !== 'id')
-            .slice(0, 4)
-            .map(([k, v]) => `**${k}:** ${typeof v === 'object' ? JSON.stringify(v).slice(0, 50) : String(v).slice(0, 50)}`)
-            .join('\n   ');
-          response += `${i + 1}. ${fields}\n\n`;
+    // Search across all tables
+    const searchTerms = q.split(/\s+/).filter(w => w.length > 2 && !/what|which|show|list|find|have|the|are/i.test(w));
+    if (searchTerms.length > 0) {
+      let allMatches = [];
+      for (const table of liveData.airtableTables) {
+        const matches = table.records.filter(r => {
+          return searchTerms.some(term =>
+            Object.values(r).some(v =>
+              String(v).toLowerCase().includes(term.toLowerCase())
+            )
+          );
+        });
+        if (matches.length > 0) {
+          allMatches.push({ tableName: table.tableName, matches });
+        }
+      }
+
+      if (allMatches.length > 0) {
+        let response = `**Found matching records:**\n\n`;
+        allMatches.forEach(({ tableName, matches }) => {
+          response += `**${tableName}:**\n`;
+          matches.slice(0, 8).forEach((r, i) => {
+            const nameField = r.Name || r.name || r.Title || r.title ||
+              Object.values(r).find(v => typeof v === 'string' && v.length > 2);
+            const fields = Object.entries(r)
+              .filter(([k]) => !k.startsWith('_') && k !== 'id')
+              .slice(0, 3)
+              .map(([k, v]) => `${k}: ${String(v).slice(0, 40)}`)
+              .join(' | ');
+            response += `${i + 1}. **${nameField || 'Record'}** - ${fields}\n`;
+          });
+          response += '\n';
         });
         return response;
-      } else {
-        return `No records found matching "${searchTerms[1]}" in your ${tableName} table.`;
       }
     }
   }
@@ -352,9 +387,9 @@ function generateIntelligentAnswer(question, kb, liveData) {
     suggestions.push('**Braze Data:**\n• "List my campaigns"\n• "How many campaigns?"\n• "Recent campaigns"');
   }
 
-  if (liveData?.airtableRecords) {
-    const tableName = liveData.airtableTableName || 'Airtable';
-    suggestions.push(`**${tableName} Data:**\n• "What DNAs do we have?"\n• "List all records"\n• "How many records?"`);
+  if (liveData?.airtableTables && liveData.airtableTables.length > 0) {
+    const tableNames = liveData.airtableTables.map(t => t.tableName).join(', ');
+    suggestions.push(`**Airtable (${tableNames}):**\n• "What DNAs do we have?"\n• "List all records"\n• "How many records?"`);
   }
 
   if (suggestions.length > 0) {

@@ -168,23 +168,32 @@
                     }
                 }
 
-                // Fetch Airtable data if connected
-                let airtableData = null;
+                // Fetch Airtable data from all configured tables
+                let airtableData = [];
                 if (needsAirtable) {
-                    try {
-                        const airtableRes = await fetch(`${PROXY_URL}/api/airtable-data`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                apiKey: airtableConfig.apiKey,
-                                baseId: airtableConfig.baseId,
-                                tableName: airtableConfig.tableName,
-                                maxRecords: 100
-                            })
-                        });
-                        airtableData = await airtableRes.json();
-                    } catch (e) {
-                        console.error('Airtable fetch error:', e);
+                    const tableNames = (airtableConfig.tableName || '').split(',').map(t => t.trim()).filter(Boolean);
+                    for (const tableName of tableNames) {
+                        try {
+                            const airtableRes = await fetch(`${PROXY_URL}/api/airtable-data`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    apiKey: airtableConfig.apiKey,
+                                    baseId: airtableConfig.baseId,
+                                    tableName: tableName,
+                                    maxRecords: 100
+                                })
+                            });
+                            const data = await airtableRes.json();
+                            if (data.success && data.records) {
+                                airtableData.push({
+                                    tableName: tableName,
+                                    records: data.records
+                                });
+                            }
+                        } catch (e) {
+                            console.error(`Airtable fetch error for ${tableName}:`, e);
+                        }
                     }
                 }
 
@@ -192,9 +201,8 @@
                 const liveContext = {
                     brazeConnected: !!brazeConfig.apiKey,
                     airtableConnected: !!airtableConfig.apiKey,
-                    airtableTableName: airtableConfig.tableName || null,
                     brazeCampaigns: brazeData?.campaigns || null,
-                    airtableRecords: airtableData?.records || null
+                    airtableTables: airtableData.length > 0 ? airtableData : null
                 };
 
                 // Send to AI chat endpoint with context
