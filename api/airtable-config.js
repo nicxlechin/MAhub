@@ -35,16 +35,30 @@ module.exports = async function handler(req, res) {
       );
 
       if (tableResponse.ok) {
+        const tableData = await tableResponse.json();
         return res.status(200).json({
           success: true,
           message: 'Connection successful',
           tableName: tableName,
+          recordCount: tableData.records?.length || 0,
           note: 'Successfully connected to table'
         });
       }
 
       const tableError = await tableResponse.json();
-      throw new Error(tableError.error?.message || 'Failed to access table');
+      const errMsg = tableError.error?.message || JSON.stringify(tableError);
+
+      if (tableResponse.status === 401) {
+        return res.status(401).json({ success: false, error: 'Invalid API key' });
+      }
+      if (tableResponse.status === 404 || errMsg.includes('Could not find table')) {
+        return res.status(404).json({ success: false, error: `Table "${tableName}" not found in this base` });
+      }
+      if (tableResponse.status === 403) {
+        return res.status(403).json({ success: false, error: 'Permission denied - token lacks access to this base' });
+      }
+
+      return res.status(400).json({ success: false, error: errMsg });
     }
 
     // Test connection by accessing the base with a fake table name
@@ -63,8 +77,8 @@ module.exports = async function handler(req, res) {
 
     // Check the error type to determine what's wrong
     if (testData.error) {
-      const errorType = testData.error.type;
-      const errorMsg = testData.error.message || '';
+      const errorType = testData.error.type || '';
+      const errorMsg = testData.error.message || JSON.stringify(testData.error);
 
       // "TABLE_NOT_FOUND" means the base ID and API key are valid!
       if (errorType === 'TABLE_NOT_FOUND' || errorMsg.includes('Could not find table')) {
@@ -76,15 +90,15 @@ module.exports = async function handler(req, res) {
       }
 
       // Authentication error
-      if (errorType === 'AUTHENTICATION_REQUIRED' || testResponse.status === 401) {
+      if (errorType === 'AUTHENTICATION_REQUIRED' || testResponse.status === 401 || errorMsg.includes('authentication') || errorMsg.includes('Invalid')) {
         return res.status(401).json({
           success: false,
           error: 'Invalid API key - check your Personal Access Token'
         });
       }
 
-      // Invalid base
-      if (errorType === 'NOT_FOUND' || errorMsg.includes('Could not find base')) {
+      // Invalid base / not found
+      if (errorType === 'NOT_FOUND' || testResponse.status === 404 || errorMsg.includes('Could not find')) {
         return res.status(404).json({
           success: false,
           error: 'Base not found - check your Base ID (starts with "app")'
@@ -92,15 +106,19 @@ module.exports = async function handler(req, res) {
       }
 
       // Permission error
-      if (errorType === 'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND') {
+      if (errorType === 'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND' || errorMsg.includes('permission') || errorMsg.includes('Permission')) {
         return res.status(403).json({
           success: false,
-          error: `Permission denied. Airtable says: "${errorMsg}". Base ID used: ${baseId.substring(0, 6)}...`
+          error: `Permission denied. Airtable says: "${errorMsg}". Base ID: ${baseId.substring(0, 6)}...`
         });
       }
 
       // Return full error for debugging
-      throw new Error(`${errorType}: ${errorMsg}`);
+      return res.status(400).json({
+        success: false,
+        error: `Airtable error: ${errorMsg}`,
+        debug: { type: errorType, status: testResponse.status }
+      });
     }
 
     // If somehow we got here with a success response
