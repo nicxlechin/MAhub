@@ -12,12 +12,21 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { apiKey, baseId, tableName } = req.body;
+  const { apiKey, baseId, tableName, skipValidation } = req.body;
 
   if (!apiKey || !baseId) {
     return res.status(400).json({
       success: false,
       error: 'API Key and Base ID are required'
+    });
+  }
+
+  // Allow skipping validation and just saving credentials
+  if (skipValidation) {
+    return res.status(200).json({
+      success: true,
+      message: 'Credentials saved (validation skipped)',
+      note: 'Credentials stored without validation. They will be tested when used.'
     });
   }
 
