@@ -119,12 +119,16 @@
     <script>
         const PROXY_URL = 'https://ma-hub.vercel.app';
 
-        // Load admin-configured Braze settings (stored by admin)
+        // Load admin-configured settings
         const brazeConfig = JSON.parse(localStorage.getItem('brazeConfig') || '{}');
+        const airtableConfig = JSON.parse(localStorage.getItem('airtableConfig') || '{}');
 
         // Show connection status
-        if (brazeConfig.apiKey) {
-            document.getElementById('connectionStatus').innerHTML = '<span class="text-green-400">● Braze connected</span>';
+        const connections = [];
+        if (brazeConfig.apiKey) connections.push('<span class="text-green-400">● Braze</span>');
+        if (airtableConfig.apiKey) connections.push('<span class="text-green-400">● Airtable</span>');
+        if (connections.length > 0) {
+            document.getElementById('connectionStatus').innerHTML = connections.join(' &nbsp; ');
         }
 
         async function runQuery(presetQuery) {
@@ -133,96 +137,61 @@
 
             document.getElementById('searchInput').value = '';
             showLoading(true);
-
-            // Add user message
             addMessage('user', query);
-
-            // Check if this is a Braze data request (live data)
-            const isBrazeDataQuery = (
-                // Any question about campaigns/canvases that implies needing live data
-                (/campaign|canvas/i.test(query) && /list|show|get|fetch|all|active|running|current|recent|scheduled|next|upcoming|when|status|how many|what are|which/i.test(query)) ||
-                // Direct braze data queries
-                (/braze/i.test(query) && /campaign|canvas|data|scheduled|active/i.test(query)) ||
-                // Direct campaign queries
-                /^list (all )?(braze )?campaigns?$/i.test(query.trim())
-            );
 
             try {
                 let response = '';
+                const q = query.toLowerCase();
 
-                if (isBrazeDataQuery && brazeConfig.apiKey) {
-                    // Fetch live data from Braze API
-                    const brazeRes = await fetch(`${PROXY_URL}/api/braze-campaigns`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            apiKey: brazeConfig.apiKey,
-                            restEndpoint: brazeConfig.restEndpoint,
-                            page: 0
-                        })
-                    });
-                    const brazeData = await brazeRes.json();
+                // Determine what data sources to query based on the question
+                const needsBraze = brazeConfig.apiKey && (
+                    /campaign|canvas|braze|email|push|sms|message|send|segment/i.test(query)
+                );
+                const needsAirtable = airtableConfig.apiKey && (
+                    /airtable|calendar|schedule|content|planning|asset/i.test(query)
+                );
 
-                    // Check if asking about schedules specifically
-                    const isScheduleQuery = /scheduled|next|upcoming|when|schedule/i.test(query);
-
-                    if (brazeData.campaigns && brazeData.campaigns.length > 0) {
-                        const sortedCampaigns = [...brazeData.campaigns].sort((a, b) => {
-                            const dateA = new Date(a.last_edited || a.created_at);
-                            const dateB = new Date(b.last_edited || b.created_at);
-                            return dateB - dateA;
-                        });
-
-                        if (isScheduleQuery) {
-                            response = `**Campaign Schedule Information**\n\nI found **${sortedCampaigns.length} campaigns** in Braze. Here are the most recently active:\n\n`;
-                            sortedCampaigns.slice(0, 8).forEach((c, i) => {
-                                const date = new Date(c.last_edited || c.created_at);
-                                const isDraft = c.draft ? ' _(draft)_' : '';
-                                response += `${i + 1}. **${c.name}**${isDraft}\n   Last updated: ${date.toLocaleString()}\n\n`;
-                            });
-                            response += `\n_Note: For detailed scheduling info (send times, triggers), check the campaign directly in Braze Dashboard._`;
-                        } else {
-                            response = `Found **${sortedCampaigns.length} campaigns** in Braze:\n\n`;
-                            sortedCampaigns.slice(0, 10).forEach((c, i) => {
-                                const date = new Date(c.last_edited || c.created_at);
-                                const isDraft = c.draft ? ' _(draft)_' : '';
-                                response += `${i + 1}. **${c.name}**${isDraft}\n   Last edited: ${date.toLocaleString()}\n\n`;
-                            });
-                            if (sortedCampaigns.length > 10) {
-                                response += `\n_...and ${sortedCampaigns.length - 10} more campaigns_`;
-                            }
-                        }
-                    } else if (!brazeConfig.apiKey) {
-                        response = '**Braze not connected**\n\nTo fetch live campaign data, an admin needs to configure Braze credentials in the [Admin Panel](/admin.html).\n\nOnce connected, I can show you:\n• Active campaigns\n• Recent canvases\n• Campaign performance data';
-                    } else {
-                        response = 'No campaigns found in Braze. This could mean there are no active campaigns, or there may be an issue with the API connection.';
-                    }
-                } else {
-                    // Use AI-powered chat endpoint
-                    const chatRes = await fetch(`${PROXY_URL}/api/chat`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ question: query })
-                    });
-                    const chatData = await chatRes.json();
-
-                    if (chatData.success && chatData.answer) {
-                        response = chatData.answer;
-                    } else {
-                        // Fallback to knowledge base search if AI fails
-                        const kbRes = await fetch(`${PROXY_URL}/api/knowledge`, {
+                // Fetch Braze data if relevant
+                let brazeData = null;
+                if (needsBraze) {
+                    try {
+                        const brazeRes = await fetch(`${PROXY_URL}/api/braze-campaigns`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ query })
+                            body: JSON.stringify({
+                                apiKey: brazeConfig.apiKey,
+                                restEndpoint: brazeConfig.restEndpoint,
+                                page: 0
+                            })
                         });
-                        const kbData = await kbRes.json();
-
-                        if (kbData.success && kbData.totalResults > 0) {
-                            response = formatKBResponse(query, kbData.results);
-                        } else {
-                            response = chatData.error || `I couldn't find specific information about "${query}". Try asking about:\n\n• Specific tools (Braze, Segment, Amplitude)\n• Data flows and integrations\n• How to perform common tasks`;
-                        }
+                        brazeData = await brazeRes.json();
+                    } catch (e) {
+                        console.error('Braze fetch error:', e);
                     }
+                }
+
+                // Build context for AI with live data
+                const liveContext = {
+                    brazeConnected: !!brazeConfig.apiKey,
+                    airtableConnected: !!airtableConfig.apiKey,
+                    brazeCampaigns: brazeData?.campaigns || null
+                };
+
+                // Send to AI chat endpoint with context
+                const chatRes = await fetch(`${PROXY_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: query,
+                        liveData: liveContext
+                    })
+                });
+                const chatData = await chatRes.json();
+
+                if (chatData.success && chatData.answer) {
+                    response = chatData.answer;
+                } else {
+                    response = `I encountered an issue processing your question. Please try rephrasing or ask about:\n\n• Campaigns and messaging (Braze)\n• Data flows and analytics\n• Lead scoring, LTV, churn models\n• Compliance and consent`;
                 }
 
                 showLoading(false);
