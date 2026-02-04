@@ -147,6 +147,7 @@
                 const needsBraze = brazeConfig.apiKey && (
                     /campaign|canvas|braze|email|push|sms|message|send/i.test(query)
                 );
+                // Always fetch Airtable data if connected - AI will filter for relevance
                 const needsAirtable = airtableConfig.apiKey && airtableConfig.tableName;
 
                 // Fetch Braze data if relevant
