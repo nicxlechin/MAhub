@@ -89,8 +89,16 @@ module.exports = async function handler(req, res) {
         });
       }
 
+      // Permission error - check this FIRST since message contains "Invalid"
+      if (errorType === 'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND' || errorMsg.includes('Invalid permissions')) {
+        return res.status(403).json({
+          success: false,
+          error: 'Permission denied - your token does not have access to this base. Please add this base to your token at airtable.com/create/tokens'
+        });
+      }
+
       // Authentication error
-      if (errorType === 'AUTHENTICATION_REQUIRED' || testResponse.status === 401 || errorMsg.includes('authentication') || errorMsg.includes('Invalid')) {
+      if (errorType === 'AUTHENTICATION_REQUIRED' || testResponse.status === 401 || errorMsg.includes('authentication')) {
         return res.status(401).json({
           success: false,
           error: 'Invalid API key - check your Personal Access Token'
@@ -102,14 +110,6 @@ module.exports = async function handler(req, res) {
         return res.status(404).json({
           success: false,
           error: 'Base not found - check your Base ID (starts with "app")'
-        });
-      }
-
-      // Permission error
-      if (errorType === 'INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND' || errorMsg.includes('permission') || errorMsg.includes('Permission')) {
-        return res.status(403).json({
-          success: false,
-          error: `Permission denied. Airtable says: "${errorMsg}". Base ID: ${baseId.substring(0, 6)}...`
         });
       }
 
