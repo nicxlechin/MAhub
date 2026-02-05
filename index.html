@@ -20,361 +20,174 @@
             0%, 100% { opacity: 0.3; }
             50% { opacity: 1; }
         }
+        .chat-content a {
+            color: #a78bfa;
+            text-decoration: underline;
+        }
+        .chat-content a:hover {
+            color: #c4b5fd;
+        }
     </style>
 </head>
 <body class="text-white p-6">
     <div class="max-w-4xl mx-auto">
         <!-- Header -->
-        <div class="mb-8 text-center relative">
-            <a href="/admin.html" class="absolute right-0 top-0 text-slate-500 hover:text-slate-300 text-sm flex items-center gap-1">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
-                Admin
-            </a>
+        <div class="mb-8 text-center">
             <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                 MV MarTech Hub
             </h1>
             <p class="text-slate-300">Ask anything about your marketing technology stack</p>
-            <div id="connectionStatus" class="mt-2 text-xs"></div>
         </div>
 
-        <!-- Search Bar -->
-        <div class="mb-6 relative">
-            <input type="text" id="searchInput" placeholder="Ask a question... (e.g., 'How do I send a push notification?')"
-                class="w-full px-6 py-4 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-400 pr-24"
-                onkeypress="if(event.key==='Enter')runQuery()">
-            <button onclick="runQuery()" class="absolute right-3 top-1/2 transform -translate-y-1/2 bg-purple-500 hover:bg-purple-600 px-5 py-2 rounded-lg">
-                Ask
-            </button>
-        </div>
-
-        <!-- Quick Questions -->
-        <div class="mb-8">
-            <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">Popular Questions</h3>
-            <div class="flex flex-wrap gap-2">
-                <button onclick="runQuery('How does lead scoring work?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    How does lead scoring work?
-                </button>
-                <button onclick="runQuery('What is predictive churn?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    What is predictive churn?
-                </button>
-                <button onclick="runQuery('How is user data collected?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    How is data collected?
-                </button>
-                <button onclick="runQuery('What channels does Braze support?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    Braze channels
-                </button>
-                <button onclick="runQuery('What is the difference between MTA and MMM?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    MTA vs MMM
-                </button>
-                <button onclick="runQuery('GDPR compliance requirements')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    GDPR compliance
-                </button>
-                <button onclick="runQuery('List all Braze campaigns')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-4 py-2 text-sm">
-                    List Braze campaigns
-                </button>
-            </div>
-        </div>
-
-        <!-- Results Area -->
-        <div id="resultsArea" class="space-y-4">
-            <!-- Welcome message -->
+        <!-- Chat Container -->
+        <div id="chatContainer" class="space-y-4 mb-6">
+            <!-- Welcome Message -->
             <div class="bg-slate-800/50 border border-slate-700 rounded-xl p-6">
                 <div class="flex items-start gap-4">
                     <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
                         <span class="text-lg">🤖</span>
                     </div>
-                    <div>
-                        <p class="text-slate-300">Hi! I'm your MV MarTech assistant. I can help you with:</p>
+                    <div class="chat-content text-slate-300">
+                        <p>Hi! I'm your MarTech assistant. I have access to your Airtable knowledge base and can help you with:</p>
                         <ul class="mt-2 text-slate-400 text-sm space-y-1">
-                            <li>• Your stack: Segment, Braze, Amplitude, Mixpanel, AppsFlyer, Clarisights</li>
-                            <li>• Data flows, audiences, and computed traits</li>
-                            <li>• Lead scoring, predictive LTV, churn models</li>
-                            <li>• Campaigns, canvases, and segmentation</li>
-                            <li>• Attribution (MTA/MMM) and measurement</li>
-                            <li>• Compliance (GDPR, CPRA, consent)</li>
+                            <li>• MarTech tools and platforms</li>
+                            <li>• Data flows and integrations</li>
+                            <li>• Processes and documentation</li>
+                            <li>• Any information stored in your Airtable</li>
                         </ul>
+                        <p class="mt-3 text-slate-400 text-sm">Just ask me anything!</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Loading -->
-        <div id="loading" class="hidden bg-slate-800/50 border border-slate-700 rounded-xl p-6 mt-4">
+        <!-- Loading Indicator -->
+        <div id="loading" class="hidden bg-slate-800/50 border border-slate-700 rounded-xl p-6 mb-6">
             <div class="flex items-center gap-4">
                 <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0">
                     <span class="text-lg">🤖</span>
                 </div>
-                <div class="typing-indicator flex gap-1">
-                    <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
-                    <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
-                    <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
+                <div>
+                    <div class="typing-indicator flex gap-1 mb-1">
+                        <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
+                        <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
+                        <span class="w-2 h-2 bg-purple-400 rounded-full"></span>
+                    </div>
+                    <p class="text-xs text-slate-500">Searching knowledge base...</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="sticky bottom-6">
+            <div class="relative">
+                <input type="text" id="questionInput"
+                    placeholder="Ask a question..."
+                    class="w-full px-6 py-4 bg-slate-800/80 border border-slate-600 rounded-xl text-white placeholder-slate-400 pr-24 backdrop-blur-sm"
+                    onkeypress="if(event.key==='Enter')askQuestion()">
+                <button onclick="askQuestion()"
+                    class="absolute right-3 top-1/2 transform -translate-y-1/2 bg-purple-500 hover:bg-purple-600 px-5 py-2 rounded-lg font-medium transition-colors">
+                    Ask
+                </button>
+            </div>
+
+            <!-- Quick Questions -->
+            <div class="mt-4 flex flex-wrap gap-2">
+                <button onclick="askQuestion('What tools do we have?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-3 py-1.5 text-xs transition-colors">
+                    What tools do we have?
+                </button>
+                <button onclick="askQuestion('What DNAs are there?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-3 py-1.5 text-xs transition-colors">
+                    What DNAs are there?
+                </button>
+                <button onclick="askQuestion('How does data flow work?')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-3 py-1.5 text-xs transition-colors">
+                    How does data flow work?
+                </button>
+                <button onclick="askQuestion('Show me all integrations')" class="bg-slate-800/50 hover:bg-slate-700 border border-slate-700 rounded-full px-3 py-1.5 text-xs transition-colors">
+                    Show integrations
+                </button>
             </div>
         </div>
     </div>
 
     <script>
-        const PROXY_URL = 'https://ma-hub.vercel.app';
+        const API_URL = window.location.hostname === 'localhost'
+            ? 'http://localhost:3000/api/chat'
+            : '/api/chat';
 
-        // Load admin-configured settings
-        const brazeConfig = JSON.parse(localStorage.getItem('brazeConfig') || '{}');
-        const airtableConfig = JSON.parse(localStorage.getItem('airtableConfig') || '{}');
+        async function askQuestion(presetQuestion) {
+            const input = document.getElementById('questionInput');
+            const question = presetQuestion || input.value.trim();
 
-        // Show connection status
-        const connections = [];
-        if (brazeConfig.apiKey) connections.push('<span class="text-green-400">● Braze</span>');
-        if (airtableConfig.apiKey) connections.push('<span class="text-green-400">● Airtable</span>');
-        if (connections.length > 0) {
-            document.getElementById('connectionStatus').innerHTML = connections.join(' &nbsp; ');
-        }
+            if (!question) return;
 
-        async function runQuery(presetQuery) {
-            const query = presetQuery || document.getElementById('searchInput').value.trim();
-            if (!query) return;
+            // Clear input
+            input.value = '';
 
-            document.getElementById('searchInput').value = '';
-            showLoading(true);
-            addMessage('user', query);
+            // Add user message to chat
+            addMessage('user', question);
+
+            // Show loading
+            document.getElementById('loading').classList.remove('hidden');
 
             try {
-                let response = '';
-                const q = query.toLowerCase();
-
-                // Determine what data sources to query based on the question
-                const needsBraze = brazeConfig.apiKey && (
-                    /campaign|canvas|braze|email|push|sms|message|send/i.test(query)
-                );
-                // Always fetch Airtable data if connected - AI will filter for relevance
-                const needsAirtable = airtableConfig.apiKey && airtableConfig.tableName;
-
-                // Fetch Braze data if relevant
-                let brazeData = null;
-                if (needsBraze) {
-                    try {
-                        const brazeRes = await fetch(`${PROXY_URL}/api/braze-campaigns`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                apiKey: brazeConfig.apiKey,
-                                restEndpoint: brazeConfig.restEndpoint,
-                                page: 0
-                            })
-                        });
-                        brazeData = await brazeRes.json();
-                    } catch (e) {
-                        console.error('Braze fetch error:', e);
-                    }
-                }
-
-                // Fetch Airtable data from all configured tables
-                let airtableData = [];
-                if (needsAirtable) {
-                    const tableNames = (airtableConfig.tableName || '').split(',').map(t => t.trim()).filter(Boolean);
-                    for (const tableName of tableNames) {
-                        try {
-                            const airtableRes = await fetch(`${PROXY_URL}/api/airtable-data`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    apiKey: airtableConfig.apiKey,
-                                    baseId: airtableConfig.baseId,
-                                    tableName: tableName,
-                                    maxRecords: 100
-                                })
-                            });
-                            const data = await airtableRes.json();
-                            if (data.success && data.records) {
-                                airtableData.push({
-                                    tableName: tableName,
-                                    records: data.records
-                                });
-                            }
-                        } catch (e) {
-                            console.error(`Airtable fetch error for ${tableName}:`, e);
-                        }
-                    }
-                }
-
-                // Build context for AI with live data
-                const liveContext = {
-                    brazeConnected: !!brazeConfig.apiKey,
-                    airtableConnected: !!airtableConfig.apiKey,
-                    brazeCampaigns: brazeData?.campaigns || null,
-                    airtableTables: airtableData.length > 0 ? airtableData : null
-                };
-
-                // Send to AI chat endpoint with context
-                const chatRes = await fetch(`${PROXY_URL}/api/chat`, {
+                const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        question: query,
-                        liveData: liveContext
-                    })
+                    body: JSON.stringify({ question })
                 });
-                const chatData = await chatRes.json();
 
-                if (chatData.success && chatData.answer) {
-                    response = chatData.answer;
+                const data = await response.json();
+
+                // Hide loading
+                document.getElementById('loading').classList.add('hidden');
+
+                if (data.success && data.answer) {
+                    addMessage('assistant', data.answer);
                 } else {
-                    response = `I encountered an issue processing your question. Please try rephrasing or ask about:\n\n• Campaigns and messaging (Braze)\n• Data flows and analytics\n• Lead scoring, LTV, churn models\n• Compliance and consent`;
+                    addMessage('assistant', `Sorry, I encountered an error: ${data.error || 'Unknown error'}. Please try again.`);
                 }
-
-                showLoading(false);
-                addMessage('assistant', response);
 
             } catch (error) {
-                showLoading(false);
-                addMessage('assistant', `Sorry, I encountered an error: ${error.message}. Please try again.`);
+                document.getElementById('loading').classList.add('hidden');
+                addMessage('assistant', `Sorry, I couldn't connect to the server. Please check if the service is running.`);
             }
-        }
-
-        function formatKBResponse(query, results) {
-            let response = '';
-
-            // Check for FAQ matches first (highest priority)
-            if (results.faqs && results.faqs.length > 0) {
-                const faq = results.faqs[0];
-                response += `**${faq.question}**\n\n${faq.answer}\n\n`;
-            }
-
-            // Add tool information
-            if (results.tools && results.tools.length > 0) {
-                if (!results.faqs || results.faqs.length === 0) {
-                    response += `Here's what I found:\n\n`;
-                }
-
-                results.tools.slice(0, 3).forEach(tool => {
-                    const statusBadge = tool.status === 'deprecated' ? ' _(being migrated)_' : '';
-                    response += `**${tool.tool}**${statusBadge} (${tool.category})\n`;
-                    response += `${tool.description}\n\n`;
-
-                    if (tool.capabilities && tool.capabilities.length > 0) {
-                        response += `Key capabilities:\n`;
-                        tool.capabilities.slice(0, 6).forEach(cap => {
-                            response += `• ${cap}\n`;
-                        });
-                        response += '\n';
-                    }
-
-                    if (tool.channels && tool.channels.length > 0) {
-                        response += `Channels: ${tool.channels.join(', ')}\n\n`;
-                    }
-
-                    if (tool.integrations && tool.integrations.length > 0) {
-                        response += `Integrates with: ${tool.integrations.join(', ')}\n\n`;
-                    }
-
-                    if (tool.consolidationPlan) {
-                        response += `**Migration plan:** ${tool.consolidationPlan.movingToBraze.join(', ')} → Braze\n\n`;
-                    }
-                });
-            }
-
-            // Add predictive models
-            if (results.predictiveModels && results.predictiveModels.length > 0) {
-                response += `**Predictive Models:**\n\n`;
-                results.predictiveModels.forEach(model => {
-                    response += `**${model.name}** ${model.scale ? `(${model.scale})` : ''}\n`;
-                    response += `${model.description}\n`;
-                    if (model.tiers) {
-                        model.tiers.forEach(tier => {
-                            const label = tier.label ? ` (${tier.label})` : '';
-                            response += `• ${tier.tier}${label}: ${tier.action}\n`;
-                        });
-                    }
-                    response += '\n';
-                });
-            }
-
-            // Add strategic pillars
-            if (results.strategicPillars && results.strategicPillars.length > 0) {
-                response += `**Strategic Pillars:**\n\n`;
-                results.strategicPillars.forEach(pillar => {
-                    response += `**${pillar.name}**: ${pillar.description}\n`;
-                    pillar.initiatives.slice(0, 3).forEach(init => {
-                        response += `• ${init}\n`;
-                    });
-                    response += '\n';
-                });
-            }
-
-            // Add data flow information
-            if (results.dataFlows && results.dataFlows.length > 0) {
-                response += `**Data Flows:**\n`;
-                results.dataFlows.forEach(flow => {
-                    response += `• **${flow.name}**: ${flow.source} → ${flow.destination}\n`;
-                    response += `  _${flow.description}_\n`;
-                    response += `  Data: ${flow.dataType}\n`;
-                });
-                response += '\n';
-            }
-
-            // Add measurement framework
-            if (results.measurementFramework) {
-                response += `**Measurement Framework:**\n`;
-                response += `_${results.measurementFramework.description}_\n\n`;
-                results.measurementFramework.approaches.forEach(approach => {
-                    response += `• **${approach.name}** - ${approach.purpose}\n`;
-                    response += `  ${approach.description}\n`;
-                });
-                response += '\n';
-            }
-
-            // Add compliance info
-            if (results.compliance && results.compliance.length > 0) {
-                const comp = results.compliance[0];
-                response += `**Compliance & Privacy:**\n`;
-                response += `Regulations: ${comp.regulations.join(', ')}\n\n`;
-                response += `_"${comp.principle}"_\n\n`;
-                comp.highRiskAreas.forEach(area => {
-                    response += `**${area.area}:**\n`;
-                    area.requirements.forEach(req => {
-                        response += `• ${req}\n`;
-                    });
-                });
-            }
-
-            return response || `I couldn't find specific information about "${query}". Try asking about:\n\n• Tools (Braze, Segment, Amplitude, AppsFlyer)\n• Data flows and integrations\n• Lead scoring, LTV, or churn prediction\n• Compliance and consent\n• Strategic pillars`;
         }
 
         function addMessage(role, content) {
-            const resultsArea = document.getElementById('resultsArea');
-
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'bg-slate-800/50 border border-slate-700 rounded-xl p-6';
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.className = 'bg-slate-800/50 border border-slate-700 rounded-xl p-6';
 
             const isUser = role === 'user';
             const avatar = isUser ? '👤' : '🤖';
-            const bgGradient = isUser ? 'from-slate-500 to-slate-600' : 'from-purple-500 to-pink-500';
+            const gradient = isUser ? 'from-slate-500 to-slate-600' : 'from-purple-500 to-pink-500';
 
-            // Convert markdown-like formatting to HTML
+            // Format content: convert markdown-style formatting to HTML
             let formattedContent = content
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/_(.*?)_/g, '<em>$1</em>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>')
+                .replace(/^• /gm, '&bull; ')
+                .replace(/^- /gm, '&bull; ')
                 .replace(/\n/g, '<br>');
 
-            messageDiv.innerHTML = `
+            div.innerHTML = `
                 <div class="flex items-start gap-4">
-                    <div class="w-10 h-10 bg-gradient-to-br ${bgGradient} rounded-full flex items-center justify-center flex-shrink-0">
+                    <div class="w-10 h-10 bg-gradient-to-br ${gradient} rounded-full flex items-center justify-center flex-shrink-0">
                         <span class="text-lg">${avatar}</span>
                     </div>
-                    <div class="flex-1 text-slate-300 leading-relaxed">
+                    <div class="chat-content flex-1 text-slate-300 leading-relaxed">
                         ${formattedContent}
                     </div>
                 </div>
             `;
 
-            resultsArea.appendChild(messageDiv);
-            messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            container.appendChild(div);
+            div.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
 
-        function showLoading(show) {
-            document.getElementById('loading').classList.toggle('hidden', !show);
-        }
+        // Focus input on load
+        document.getElementById('questionInput').focus();
     </script>
 </body>
 </html>

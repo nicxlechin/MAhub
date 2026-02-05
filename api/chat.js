@@ -1,400 +1,271 @@
-// Intelligent chat endpoint - uses OpenAI with live data context
-const fs = require('fs');
-const path = require('path');
+// MV MarTech Hub - Intelligent Chat API
+// Dynamically fetches from Airtable, parses documents, uses OpenAI
 
 module.exports = async function handler(req, res) {
+  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ error: 'Question is required' });
+
+  // Get credentials from environment
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+
+  if (!OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'OpenAI API key not configured' });
   }
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { question, liveData } = req.body;
-
-  if (!question) {
-    return res.status(400).json({ error: 'Question is required' });
-  }
-
-  // Load knowledge base
-  let knowledgeBase;
   try {
-    const kbPath = path.join(process.cwd(), 'data', 'knowledge-base.json');
-    knowledgeBase = JSON.parse(fs.readFileSync(kbPath, 'utf8'));
-  } catch (e) {
-    return res.status(500).json({ error: 'Failed to load knowledge base' });
-  }
+    let knowledgeContext = '';
 
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  // Build context with live data
-  const context = buildContext(question, knowledgeBase, liveData);
-
-  // If OpenAI is available, use it
-  if (apiKey) {
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a helpful MarTech assistant for Mindvalley. Answer questions directly and helpfully.
-
-IMPORTANT RULES:
-- Give direct, specific answers - never say "I can help with..." as a response
-- If you have live data (campaigns, etc), USE IT to answer the question
-- Use **bold** for emphasis and bullet points for lists
-- Keep responses concise but complete
-- If you truly don't know, admit it briefly and suggest what you CAN help with
-
-${context}`
-            },
-            {
-              role: 'user',
-              content: question
-            }
-          ],
-          max_tokens: 1000,
-          temperature: 0.7
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const answer = data.choices[0]?.message?.content;
-        if (answer) {
-          return res.status(200).json({ success: true, answer, model: 'gpt-4o-mini' });
-        }
-      }
-    } catch (error) {
-      console.error('OpenAI error:', error);
+    // Fetch Airtable data if configured
+    if (AIRTABLE_API_KEY && AIRTABLE_BASE_ID) {
+      console.log('Fetching Airtable data...');
+      knowledgeContext = await fetchAirtableKnowledge(AIRTABLE_API_KEY, AIRTABLE_BASE_ID);
     }
-  }
 
-  // Fallback: Generate intelligent answer without OpenAI
-  const answer = generateIntelligentAnswer(question, knowledgeBase, liveData);
-  return res.status(200).json({ success: true, answer, model: 'fallback' });
-};
+    // Send to OpenAI
+    const answer = await askOpenAI(OPENAI_API_KEY, question, knowledgeContext);
 
-function buildContext(question, kb, liveData) {
-  let context = 'KNOWLEDGE BASE:\n';
+    return res.status(200).json({
+      success: true,
+      answer,
+      source: knowledgeContext ? 'airtable+openai' : 'openai'
+    });
 
-  // Add relevant FAQs
-  const q = question.toLowerCase();
-  const relevantFaqs = kb.faqs.filter(faq => {
-    const words = q.split(/\s+/).filter(w => w.length > 2);
-    return words.some(w =>
-      faq.question.toLowerCase().includes(w) ||
-      faq.answer.toLowerCase().includes(w)
-    );
-  }).slice(0, 5);
-
-  if (relevantFaqs.length > 0) {
-    context += '\nRelevant FAQs:\n';
-    relevantFaqs.forEach(faq => {
-      context += `Q: ${faq.question}\nA: ${faq.answer}\n\n`;
+  } catch (error) {
+    console.error('Chat error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to process question'
     });
   }
+};
 
-  // Add tool information
-  context += '\nAvailable Tools: Segment (CDP), Braze (engagement), Amplitude (analytics), Mixpanel, AppsFlyer (attribution), Clarisights\n';
+// Fetch all tables and records from Airtable, including document content
+async function fetchAirtableKnowledge(apiKey, baseId) {
+  let context = '';
 
-  // Add predictive models info
-  context += '\nPredictive Models: Lead Scoring (0-100), Predictive LTV, Churn Score, Product Affinity\n';
+  try {
+    // Step 1: Get list of all tables in the base
+    const tablesRes = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    });
 
-  // Add live data context if available
-  if (liveData) {
-    context += '\n--- LIVE DATA ---\n';
-    context += `Braze Connected: ${liveData.brazeConnected ? 'Yes' : 'No'}\n`;
-    context += `Airtable Connected: ${liveData.airtableConnected ? 'Yes' : 'No'}\n`;
-
-    if (liveData.brazeCampaigns && liveData.brazeCampaigns.length > 0) {
-      const campaigns = liveData.brazeCampaigns;
-      const sorted = [...campaigns].sort((a, b) =>
-        new Date(b.last_edited || b.created_at) - new Date(a.last_edited || a.created_at)
-      );
-
-      context += `\nBraze Campaigns (${campaigns.length} total):\n`;
-      sorted.slice(0, 15).forEach((c, i) => {
-        const date = new Date(c.last_edited || c.created_at).toLocaleDateString();
-        const status = c.draft ? 'draft' : 'active';
-        context += `${i + 1}. ${c.name} (${status}, last edited: ${date})\n`;
-      });
+    if (!tablesRes.ok) {
+      console.error('Failed to fetch tables:', await tablesRes.text());
+      return '';
     }
 
-    if (liveData.airtableTables && liveData.airtableTables.length > 0) {
-      context += `\nAirtable Data:\n`;
-      liveData.airtableTables.forEach(table => {
-        context += `\nTable: "${table.tableName}" (${table.records.length} records):\n`;
-        table.records.slice(0, 15).forEach((r, i) => {
-          const fields = Object.entries(r)
-            .filter(([k]) => !k.startsWith('_') && k !== 'id')
-            .slice(0, 5)
-            .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v).slice(0, 100) : String(v).slice(0, 100)}`)
-            .join(', ');
-          context += `${i + 1}. ${fields}\n`;
-        });
+    const tablesData = await tablesRes.json();
+    const tables = tablesData.tables || [];
+
+    console.log(`Found ${tables.length} tables`);
+
+    // Step 2: Fetch records from each table
+    for (const table of tables) {
+      const tableName = table.name;
+      const tableId = table.id;
+
+      // Identify field types for this table
+      const attachmentFields = [];
+      const urlFields = [];
+
+      for (const field of table.fields || []) {
+        if (field.type === 'multipleAttachments') {
+          attachmentFields.push(field.name);
+        }
+        if (field.type === 'url' || field.type === 'richText' || field.type === 'multilineText' || field.type === 'singleLineText') {
+          urlFields.push(field.name);
+        }
+      }
+
+      // Fetch records from this table
+      const recordsRes = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
       });
+
+      if (!recordsRes.ok) {
+        console.error(`Failed to fetch records from ${tableName}`);
+        continue;
+      }
+
+      const recordsData = await recordsRes.json();
+      const records = recordsData.records || [];
+
+      if (records.length === 0) continue;
+
+      context += `\n\n=== TABLE: ${tableName} (${records.length} records) ===\n`;
+
+      // Process each record
+      for (const record of records) {
+        const fields = record.fields;
+        let recordText = '\n---\n';
+
+        // Add all regular fields
+        for (const [key, value] of Object.entries(fields)) {
+          if (value === null || value === undefined) continue;
+
+          // Handle attachments
+          if (attachmentFields.includes(key) && Array.isArray(value)) {
+            recordText += `${key}: `;
+            for (const attachment of value) {
+              recordText += `[${attachment.filename || 'file'}](${attachment.url}) `;
+
+              // Try to fetch document content
+              const docContent = await fetchDocumentContent(attachment.url, attachment.type);
+              if (docContent) {
+                recordText += `\n  Content: ${docContent.substring(0, 2000)}...\n`;
+              }
+            }
+            recordText += '\n';
+          }
+          // Handle potential URL fields - look for Google Docs links
+          else if (typeof value === 'string' && value.includes('docs.google.com')) {
+            recordText += `${key}: ${value}\n`;
+            const docContent = await fetchGoogleDocContent(value);
+            if (docContent) {
+              recordText += `  Document Content: ${docContent.substring(0, 3000)}...\n`;
+            }
+          }
+          // Handle arrays
+          else if (Array.isArray(value)) {
+            recordText += `${key}: ${value.join(', ')}\n`;
+          }
+          // Handle objects
+          else if (typeof value === 'object') {
+            recordText += `${key}: ${JSON.stringify(value)}\n`;
+          }
+          // Handle regular values
+          else {
+            recordText += `${key}: ${value}\n`;
+          }
+        }
+
+        context += recordText;
+      }
     }
+
+  } catch (error) {
+    console.error('Airtable fetch error:', error);
   }
 
   return context;
 }
 
-function generateIntelligentAnswer(question, kb, liveData) {
-  const q = question.toLowerCase();
+// Fetch content from Google Docs (must be publicly shared)
+async function fetchGoogleDocContent(url) {
+  try {
+    // Extract doc ID from various Google Docs URL formats
+    const patterns = [
+      /docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/,
+      /docs\.google\.com\/document\/u\/\d+\/d\/([a-zA-Z0-9_-]+)/,
+      /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/
+    ];
 
-  // Check for campaign-related questions with live data
-  if (liveData?.brazeCampaigns && liveData.brazeCampaigns.length > 0) {
-    const campaigns = liveData.brazeCampaigns;
-    const sorted = [...campaigns].sort((a, b) =>
-      new Date(b.last_edited || b.created_at) - new Date(a.last_edited || a.created_at)
-    );
-
-    // How many campaigns
-    if (/how many|count|total/i.test(q) && /campaign/i.test(q)) {
-      const drafts = campaigns.filter(c => c.draft).length;
-      const active = campaigns.length - drafts;
-      return `You have **${campaigns.length} campaigns** in Braze:\n• ${active} active campaigns\n• ${drafts} drafts`;
-    }
-
-    // List/show campaigns
-    if (/list|show|what|which/i.test(q) && /campaign/i.test(q)) {
-      let response = `**Your Braze Campaigns** (${campaigns.length} total):\n\n`;
-      sorted.slice(0, 10).forEach((c, i) => {
-        const date = new Date(c.last_edited || c.created_at).toLocaleDateString();
-        const status = c.draft ? ' _(draft)_' : '';
-        response += `${i + 1}. **${c.name}**${status}\n   Last edited: ${date}\n\n`;
-      });
-      if (campaigns.length > 10) {
-        response += `_...and ${campaigns.length - 10} more_`;
-      }
-      return response;
-    }
-
-    // Recent/latest campaigns
-    if (/recent|latest|last|new/i.test(q) && /campaign/i.test(q)) {
-      let response = `**Most Recent Campaigns:**\n\n`;
-      sorted.slice(0, 5).forEach((c, i) => {
-        const date = new Date(c.last_edited || c.created_at).toLocaleDateString();
-        response += `${i + 1}. **${c.name}**\n   Last edited: ${date}\n\n`;
-      });
-      return response;
-    }
-
-    // Search for specific campaign
-    const searchMatch = q.match(/campaign.*(called|named|about|for)\s+["']?([^"'?]+)/i);
-    if (searchMatch) {
-      const searchTerm = searchMatch[2].trim().toLowerCase();
-      const matches = campaigns.filter(c => c.name.toLowerCase().includes(searchTerm));
-      if (matches.length > 0) {
-        let response = `**Found ${matches.length} matching campaign(s):**\n\n`;
-        matches.slice(0, 5).forEach((c, i) => {
-          const date = new Date(c.last_edited || c.created_at).toLocaleDateString();
-          response += `${i + 1}. **${c.name}**\n   Last edited: ${date}\n\n`;
-        });
-        return response;
-      } else {
-        return `No campaigns found matching "${searchMatch[2]}". You have ${campaigns.length} campaigns in Braze.`;
+    let docId = null;
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) {
+        docId = match[1];
+        break;
       }
     }
+
+    if (!docId) return null;
+
+    // Fetch as plain text (requires doc to be publicly accessible)
+    const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
+    const response = await fetch(exportUrl);
+
+    if (!response.ok) {
+      console.log(`Could not fetch Google Doc ${docId}: ${response.status}`);
+      return null;
+    }
+
+    const text = await response.text();
+    return text.trim();
+
+  } catch (error) {
+    console.error('Google Doc fetch error:', error);
+    return null;
   }
+}
 
-  // Check for Airtable data queries
-  if (liveData?.airtableTables && liveData.airtableTables.length > 0) {
-    // Find relevant table based on question keywords
-    const findRelevantTable = () => {
-      for (const table of liveData.airtableTables) {
-        const tableNameLower = table.tableName.toLowerCase();
-        // Check if question mentions this table or related terms
-        if (q.includes(tableNameLower) ||
-            (tableNameLower.includes('dna') && /dna/i.test(q)) ||
-            (tableNameLower.includes('calendar') && /calendar|schedule/i.test(q)) ||
-            (tableNameLower.includes('content') && /content/i.test(q)) ||
-            (tableNameLower.includes('campaign') && /campaign/i.test(q))) {
-          return table;
-        }
-      }
-      // Default to first table if no specific match
-      return liveData.airtableTables[0];
-    };
-
-    const relevantTable = findRelevantTable();
-    const records = relevantTable.records;
-    const tableName = relevantTable.tableName;
-
-    // List/show/what records (but not campaigns - those go to Braze)
-    if (/list|show|what|which|all|have/i.test(q) && !/campaign|canvas|braze/i.test(q)) {
-      let response = `**${tableName}** (${records.length} records):\n\n`;
-      records.slice(0, 15).forEach((r, i) => {
-        const nameField = r.Name || r.name || r.Title || r.title ||
-          Object.values(r).find(v => typeof v === 'string' && v.length > 2 && !v.startsWith('rec'));
-        const otherFields = Object.entries(r)
-          .filter(([k]) => !k.startsWith('_') && k !== 'id' && k.toLowerCase() !== 'name' && k.toLowerCase() !== 'title')
-          .slice(0, 3)
-          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v).slice(0, 50) : String(v).slice(0, 50)}`)
-          .join(' | ');
-        response += `${i + 1}. **${nameField || 'Record ' + (i+1)}**\n   ${otherFields}\n\n`;
-      });
-      if (records.length > 15) {
-        response += `_...and ${records.length - 15} more_`;
-      }
-      return response;
+// Fetch content from document attachments (PDFs, etc.)
+async function fetchDocumentContent(url, mimeType) {
+  try {
+    // For PDFs, we'd need a PDF parser - for now, just note the URL
+    if (mimeType && mimeType.includes('pdf')) {
+      // In production, you could use pdf-parse or a PDF API service
+      return `[PDF document - view at: ${url}]`;
     }
 
-    // How many records
-    if (/how many|count|total/i.test(q) && !/campaign/i.test(q)) {
-      let response = '';
-      liveData.airtableTables.forEach(t => {
-        response += `• **${t.tableName}**: ${t.records.length} records\n`;
-      });
-      return `**Your Airtable Data:**\n\n${response}`;
-    }
-
-    // Search across all tables
-    const searchTerms = q.split(/\s+/).filter(w => w.length > 2 && !/what|which|show|list|find|have|the|are/i.test(w));
-    if (searchTerms.length > 0) {
-      let allMatches = [];
-      for (const table of liveData.airtableTables) {
-        const matches = table.records.filter(r => {
-          return searchTerms.some(term =>
-            Object.values(r).some(v =>
-              String(v).toLowerCase().includes(term.toLowerCase())
-            )
-          );
-        });
-        if (matches.length > 0) {
-          allMatches.push({ tableName: table.tableName, matches });
-        }
-      }
-
-      if (allMatches.length > 0) {
-        let response = `**Found matching records:**\n\n`;
-        allMatches.forEach(({ tableName, matches }) => {
-          response += `**${tableName}:**\n`;
-          matches.slice(0, 8).forEach((r, i) => {
-            const nameField = r.Name || r.name || r.Title || r.title ||
-              Object.values(r).find(v => typeof v === 'string' && v.length > 2);
-            const fields = Object.entries(r)
-              .filter(([k]) => !k.startsWith('_') && k !== 'id')
-              .slice(0, 3)
-              .map(([k, v]) => `${k}: ${String(v).slice(0, 40)}`)
-              .join(' | ');
-            response += `${i + 1}. **${nameField || 'Record'}** - ${fields}\n`;
-          });
-          response += '\n';
-        });
-        return response;
+    // For text files, fetch directly
+    if (mimeType && (mimeType.includes('text') || mimeType.includes('plain'))) {
+      const response = await fetch(url);
+      if (response.ok) {
+        return await response.text();
       }
     }
+
+    return null;
+  } catch (error) {
+    console.error('Document fetch error:', error);
+    return null;
+  }
+}
+
+// Ask OpenAI with the knowledge context
+async function askOpenAI(apiKey, question, knowledgeContext) {
+  const systemPrompt = `You are MV MarTech Hub, an intelligent assistant for Mindvalley's marketing technology stack.
+
+Your knowledge comes from the company's Airtable database which contains:
+- MarTech DNA (tools, platforms, integrations)
+- Processes and workflows
+- Documentation and guides
+- Any other relevant marketing technology information
+
+INSTRUCTIONS:
+1. Answer questions directly and helpfully based on the knowledge provided
+2. If the knowledge contains relevant information, USE IT to give specific answers
+3. Reference specific tools, processes, or documents when relevant
+4. If you find document links in the data, you can share them with the user
+5. Use **bold** for emphasis and bullet points for lists
+6. Be concise but complete
+7. If you truly don't have information about something, say so honestly
+
+${knowledgeContext ? `\n--- KNOWLEDGE BASE ---\n${knowledgeContext}\n--- END KNOWLEDGE BASE ---` : 'Note: No knowledge base is currently connected.'}`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: question }
+      ],
+      max_tokens: 2000,
+      temperature: 0.7
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'OpenAI API error');
   }
 
-  // Check FAQs for best match
-  let bestFaq = null;
-  let bestScore = 0;
-  const words = q.split(/\s+/).filter(w => w.length > 2);
-
-  for (const faq of kb.faqs) {
-    const faqText = (faq.question + ' ' + faq.answer).toLowerCase();
-    const matches = words.filter(w => faqText.includes(w)).length;
-    const score = matches / Math.max(words.length, 1);
-    if (score > bestScore) {
-      bestScore = score;
-      bestFaq = faq;
-    }
-  }
-
-  if (bestFaq && bestScore > 0.4) {
-    return `**${bestFaq.question}**\n\n${bestFaq.answer}`;
-  }
-
-  // Topic-specific responses
-  if (/lead scor/i.test(q)) {
-    const model = kb.dataStrategy.predictiveModels.find(m => m.name.includes('Lead Score'));
-    if (model) {
-      let response = `**${model.name}**\n\n${model.description}\n\n`;
-      model.tiers.forEach(t => {
-        response += `• **${t.tier}**${t.label ? ` (${t.label})` : ''}: ${t.action}\n`;
-      });
-      return response;
-    }
-  }
-
-  if (/churn/i.test(q)) {
-    const model = kb.dataStrategy.predictiveModels.find(m => m.name.includes('Churn'));
-    if (model) {
-      let response = `**${model.name}**\n\n${model.description}\n\nScale: ${model.scale}\n\n`;
-      model.tiers.forEach(t => {
-        response += `• **${t.tier}**: ${t.action}\n`;
-      });
-      return response;
-    }
-  }
-
-  if (/channel|braze support/i.test(q)) {
-    const braze = kb.categories.find(c => c.name === 'Customer Engagement')?.tools.find(t => t.name === 'Braze');
-    if (braze?.channels) {
-      return `**Braze Supported Channels:**\n\n${braze.channels.map(c => `• ${c}`).join('\n')}\n\n**Key Capabilities:**\n${braze.capabilities.slice(0, 5).map(c => `• ${c}`).join('\n')}`;
-    }
-  }
-
-  if (/mta|mmm|attribution/i.test(q)) {
-    const mf = kb.measurementFramework;
-    let response = `**${mf.description}**\n\n`;
-    mf.approaches.forEach(a => {
-      response += `**${a.name}** (${a.purpose})\n${a.description}\n\n`;
-    });
-    return response;
-  }
-
-  if (/gdpr|compliance|privacy|consent/i.test(q)) {
-    const c = kb.compliance;
-    let response = `**Compliance & Privacy**\n\nRegulations: ${c.regulations.join(', ')}\n\n`;
-    response += `_"${c.principle}"_\n\n`;
-    c.highRiskAreas.forEach(area => {
-      response += `**${area.area}:**\n${area.requirements.map(r => `• ${r}`).join('\n')}\n\n`;
-    });
-    return response;
-  }
-
-  if (/segment|data collect|cdp/i.test(q)) {
-    const segment = kb.categories.find(c => c.name.includes('CDP'))?.tools[0];
-    if (segment) {
-      return `**${segment.name}**\n\n${segment.description}\n\n**Capabilities:**\n${segment.capabilities.map(c => `• ${c}`).join('\n')}\n\n**Integrations:** ${segment.integrations.join(', ')}`;
-    }
-  }
-
-  // If Braze is mentioned but no data
-  if (/braze/i.test(q) && !liveData?.brazeConnected) {
-    return `To answer questions about your Braze campaigns, please connect Braze in the **Admin Panel**.\n\nOnce connected, I can help with:\n• Listing your campaigns\n• Finding specific campaigns\n• Campaign counts and status\n• Recent campaign activity`;
-  }
-
-  // Generic but still helpful response
-  const suggestions = [];
-
-  if (liveData?.brazeConnected) {
-    suggestions.push('**Braze Data:**\n• "List my campaigns"\n• "How many campaigns?"\n• "Recent campaigns"');
-  }
-
-  if (liveData?.airtableTables && liveData.airtableTables.length > 0) {
-    const tableNames = liveData.airtableTables.map(t => t.tableName).join(', ');
-    suggestions.push(`**Airtable (${tableNames}):**\n• "What DNAs do we have?"\n• "List all records"\n• "How many records?"`);
-  }
-
-  if (suggestions.length > 0) {
-    return `I'm not sure about that specific question, but I can help with:\n\n${suggestions.join('\n\n')}\n\n**Knowledge Base:**\n• Lead scoring and predictive models\n• Data flows and integrations\n• Compliance (GDPR, consent)`;
-  }
-
-  return `I can help you with MarTech questions! Try asking:\n\n• "How does lead scoring work?"\n• "What channels does Braze support?"\n• "Explain predictive churn"\n• "What is MTA vs MMM?"\n\n_Connect Braze/Airtable in Admin to query live data._`;
+  const data = await response.json();
+  return data.choices[0]?.message?.content || 'I could not generate a response.';
 }
