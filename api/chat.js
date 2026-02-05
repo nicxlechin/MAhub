@@ -16,6 +16,8 @@ module.exports = async function handler(req, res) {
   // Get credentials from environment
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+  const BRAZE_API_KEY = process.env.BRAZE_API_KEY;
+  const BRAZE_ENDPOINT = process.env.BRAZE_ENDPOINT;
 
   if (!OPENAI_API_KEY) {
     return res.status(500).json({ error: 'OpenAI API key not configured' });
@@ -27,7 +29,13 @@ module.exports = async function handler(req, res) {
     // Fetch Airtable data if configured - auto-discovers ALL bases
     if (AIRTABLE_API_KEY) {
       console.log('Fetching Airtable data from all bases...');
-      knowledgeContext = await fetchAllAirtableKnowledge(AIRTABLE_API_KEY);
+      knowledgeContext += await fetchAllAirtableKnowledge(AIRTABLE_API_KEY);
+    }
+
+    // Fetch Braze data if configured
+    if (BRAZE_API_KEY && BRAZE_ENDPOINT) {
+      console.log('Fetching Braze data...');
+      knowledgeContext += await fetchBrazeData(BRAZE_API_KEY, BRAZE_ENDPOINT);
     }
 
     // Send to OpenAI
@@ -178,6 +186,64 @@ async function fetchAllAirtableKnowledge(apiKey) {
   return context;
 }
 
+// Fetch campaigns and canvases from Braze
+async function fetchBrazeData(apiKey, endpoint) {
+  let context = '\n\n########## BRAZE DATA ##########\n';
+
+  try {
+    // Fetch campaigns
+    const campaignsRes = await fetch(`${endpoint}/campaigns/list?page=0&include_archived=false&sort_direction=desc`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    });
+
+    if (campaignsRes.ok) {
+      const campaignsData = await campaignsRes.json();
+      const campaigns = campaignsData.campaigns || [];
+
+      context += `\n=== CAMPAIGNS (${campaigns.length} total) ===\n`;
+
+      for (const campaign of campaigns.slice(0, 50)) {
+        context += `\n---\n`;
+        context += `Name: ${campaign.name}\n`;
+        context += `ID: ${campaign.id}\n`;
+        if (campaign.draft) context += `Status: Draft\n`;
+        if (campaign.tags && campaign.tags.length > 0) context += `Tags: ${campaign.tags.join(', ')}\n`;
+        if (campaign.last_edited) context += `Last Edited: ${campaign.last_edited}\n`;
+      }
+    } else {
+      console.error('Failed to fetch Braze campaigns:', await campaignsRes.text());
+    }
+
+    // Fetch canvases
+    const canvasesRes = await fetch(`${endpoint}/canvas/list?page=0&include_archived=false&sort_direction=desc`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    });
+
+    if (canvasesRes.ok) {
+      const canvasesData = await canvasesRes.json();
+      const canvases = canvasesData.canvases || [];
+
+      context += `\n=== CANVASES (${canvases.length} total) ===\n`;
+
+      for (const canvas of canvases.slice(0, 50)) {
+        context += `\n---\n`;
+        context += `Name: ${canvas.name}\n`;
+        context += `ID: ${canvas.id}\n`;
+        if (canvas.draft) context += `Status: Draft\n`;
+        if (canvas.tags && canvas.tags.length > 0) context += `Tags: ${canvas.tags.join(', ')}\n`;
+        if (canvas.last_edited) context += `Last Edited: ${canvas.last_edited}\n`;
+      }
+    } else {
+      console.error('Failed to fetch Braze canvases:', await canvasesRes.text());
+    }
+
+  } catch (error) {
+    console.error('Braze fetch error:', error);
+  }
+
+  return context;
+}
+
 // Fetch content from Google Docs (must be publicly shared)
 async function fetchGoogleDocContent(url) {
   try {
@@ -245,11 +311,17 @@ async function fetchDocumentContent(url, mimeType) {
 async function askOpenAI(apiKey, question, knowledgeContext) {
   const systemPrompt = `You are MV MarTech Hub, an intelligent assistant for Mindvalley's marketing technology stack.
 
-Your knowledge comes from the company's Airtable database which contains:
+Your knowledge comes from connected data sources:
+
+**Airtable** (if connected):
 - MarTech DNA (tools, platforms, integrations)
 - Processes and workflows
 - Documentation and guides
-- Any other relevant marketing technology information
+
+**Braze** (if connected):
+- Live campaign data (names, status, tags, last edited)
+- Canvas data (names, status, tags)
+- You can answer questions about what campaigns exist, their status, etc.
 
 INSTRUCTIONS:
 1. Answer questions directly and helpfully based on the knowledge provided
