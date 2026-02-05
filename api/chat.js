@@ -16,7 +16,6 @@ module.exports = async function handler(req, res) {
   // Get credentials from environment
   const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
   const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
-  const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 
   if (!OPENAI_API_KEY) {
     return res.status(500).json({ error: 'OpenAI API key not configured' });
@@ -25,10 +24,10 @@ module.exports = async function handler(req, res) {
   try {
     let knowledgeContext = '';
 
-    // Fetch Airtable data if configured
-    if (AIRTABLE_API_KEY && AIRTABLE_BASE_ID) {
-      console.log('Fetching Airtable data...');
-      knowledgeContext = await fetchAirtableKnowledge(AIRTABLE_API_KEY, AIRTABLE_BASE_ID);
+    // Fetch Airtable data if configured - auto-discovers ALL bases
+    if (AIRTABLE_API_KEY) {
+      console.log('Fetching Airtable data from all bases...');
+      knowledgeContext = await fetchAllAirtableKnowledge(AIRTABLE_API_KEY);
     }
 
     // Send to OpenAI
@@ -49,107 +48,126 @@ module.exports = async function handler(req, res) {
   }
 };
 
-// Fetch all tables and records from Airtable, including document content
-async function fetchAirtableKnowledge(apiKey, baseId) {
+// Fetch ALL bases, tables, and records from Airtable
+async function fetchAllAirtableKnowledge(apiKey) {
   let context = '';
 
   try {
-    // Step 1: Get list of all tables in the base
-    const tablesRes = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
+    // Step 1: Get list of ALL bases the token has access to
+    const basesRes = await fetch('https://api.airtable.com/v0/meta/bases', {
       headers: { 'Authorization': `Bearer ${apiKey}` }
     });
 
-    if (!tablesRes.ok) {
-      console.error('Failed to fetch tables:', await tablesRes.text());
+    if (!basesRes.ok) {
+      console.error('Failed to fetch bases:', await basesRes.text());
       return '';
     }
 
-    const tablesData = await tablesRes.json();
-    const tables = tablesData.tables || [];
+    const basesData = await basesRes.json();
+    const bases = basesData.bases || [];
 
-    console.log(`Found ${tables.length} tables`);
+    console.log(`Found ${bases.length} bases`);
 
-    // Step 2: Fetch records from each table
-    for (const table of tables) {
-      const tableName = table.name;
-      const tableId = table.id;
+    // Step 2: For each base, fetch all tables and records
+    for (const base of bases) {
+      const baseId = base.id;
+      const baseName = base.name;
 
-      // Identify field types for this table
-      const attachmentFields = [];
-      const urlFields = [];
+      console.log(`Processing base: ${baseName}`);
+      context += `\n\n########## BASE: ${baseName} ##########\n`;
 
-      for (const field of table.fields || []) {
-        if (field.type === 'multipleAttachments') {
-          attachmentFields.push(field.name);
-        }
-        if (field.type === 'url' || field.type === 'richText' || field.type === 'multilineText' || field.type === 'singleLineText') {
-          urlFields.push(field.name);
-        }
-      }
-
-      // Fetch records from this table
-      const recordsRes = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`, {
+      // Get tables in this base
+      const tablesRes = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
 
-      if (!recordsRes.ok) {
-        console.error(`Failed to fetch records from ${tableName}`);
+      if (!tablesRes.ok) {
+        console.error(`Failed to fetch tables from ${baseName}`);
         continue;
       }
 
-      const recordsData = await recordsRes.json();
-      const records = recordsData.records || [];
+      const tablesData = await tablesRes.json();
+      const tables = tablesData.tables || [];
 
-      if (records.length === 0) continue;
+      console.log(`  Found ${tables.length} tables in ${baseName}`);
 
-      context += `\n\n=== TABLE: ${tableName} (${records.length} records) ===\n`;
+      // Step 3: Fetch records from each table
+      for (const table of tables) {
+        const tableName = table.name;
 
-      // Process each record
-      for (const record of records) {
-        const fields = record.fields;
-        let recordText = '\n---\n';
+        // Identify field types for this table
+        const attachmentFields = [];
 
-        // Add all regular fields
-        for (const [key, value] of Object.entries(fields)) {
-          if (value === null || value === undefined) continue;
-
-          // Handle attachments
-          if (attachmentFields.includes(key) && Array.isArray(value)) {
-            recordText += `${key}: `;
-            for (const attachment of value) {
-              recordText += `[${attachment.filename || 'file'}](${attachment.url}) `;
-
-              // Try to fetch document content
-              const docContent = await fetchDocumentContent(attachment.url, attachment.type);
-              if (docContent) {
-                recordText += `\n  Content: ${docContent.substring(0, 2000)}...\n`;
-              }
-            }
-            recordText += '\n';
-          }
-          // Handle potential URL fields - look for Google Docs links
-          else if (typeof value === 'string' && value.includes('docs.google.com')) {
-            recordText += `${key}: ${value}\n`;
-            const docContent = await fetchGoogleDocContent(value);
-            if (docContent) {
-              recordText += `  Document Content: ${docContent.substring(0, 3000)}...\n`;
-            }
-          }
-          // Handle arrays
-          else if (Array.isArray(value)) {
-            recordText += `${key}: ${value.join(', ')}\n`;
-          }
-          // Handle objects
-          else if (typeof value === 'object') {
-            recordText += `${key}: ${JSON.stringify(value)}\n`;
-          }
-          // Handle regular values
-          else {
-            recordText += `${key}: ${value}\n`;
+        for (const field of table.fields || []) {
+          if (field.type === 'multipleAttachments') {
+            attachmentFields.push(field.name);
           }
         }
 
-        context += recordText;
+        // Fetch records from this table
+        const recordsRes = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?maxRecords=100`, {
+          headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+
+        if (!recordsRes.ok) {
+          console.error(`  Failed to fetch records from ${tableName}`);
+          continue;
+        }
+
+        const recordsData = await recordsRes.json();
+        const records = recordsData.records || [];
+
+        if (records.length === 0) continue;
+
+        context += `\n=== TABLE: ${tableName} (${records.length} records) ===\n`;
+
+        // Process each record
+        for (const record of records) {
+          const fields = record.fields;
+          let recordText = '\n---\n';
+
+          // Add all fields
+          for (const [key, value] of Object.entries(fields)) {
+            if (value === null || value === undefined) continue;
+
+            // Handle attachments
+            if (attachmentFields.includes(key) && Array.isArray(value)) {
+              recordText += `${key}: `;
+              for (const attachment of value) {
+                recordText += `[${attachment.filename || 'file'}](${attachment.url}) `;
+
+                // Try to fetch document content
+                const docContent = await fetchDocumentContent(attachment.url, attachment.type);
+                if (docContent) {
+                  recordText += `\n  Content: ${docContent.substring(0, 2000)}...\n`;
+                }
+              }
+              recordText += '\n';
+            }
+            // Handle Google Docs links in any text field
+            else if (typeof value === 'string' && value.includes('docs.google.com')) {
+              recordText += `${key}: ${value}\n`;
+              const docContent = await fetchGoogleDocContent(value);
+              if (docContent) {
+                recordText += `  Document Content: ${docContent.substring(0, 3000)}...\n`;
+              }
+            }
+            // Handle arrays
+            else if (Array.isArray(value)) {
+              recordText += `${key}: ${value.join(', ')}\n`;
+            }
+            // Handle objects
+            else if (typeof value === 'object') {
+              recordText += `${key}: ${JSON.stringify(value)}\n`;
+            }
+            // Handle regular values
+            else {
+              recordText += `${key}: ${value}\n`;
+            }
+          }
+
+          context += recordText;
+        }
       }
     }
 
